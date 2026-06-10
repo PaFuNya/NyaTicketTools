@@ -164,6 +164,12 @@ if check_optional git; then HAS_GIT=true; fi
 if check_optional python3; then HAS_PYTHON=true; fi
 
 # Prefer uv (fast), fallback to pip
+# uv is often installed to ~/.local/bin — add it to PATH
+if [[ -z "${UV_PATH_FIXED:-}" ]]; then
+    export PATH="$HOME/.local/bin:$HOME/.cargo/bin:$PATH"
+    export UV_PATH_FIXED=1
+fi
+
 if command -v uv &>/dev/null; then
     ok "uv found: $(command -v uv)"
     HAS_PKG=true
