@@ -440,31 +440,10 @@
           <div class="deploy-overview glass">
             <h2 class="section-title" data-i18n="deploy_overview">部署概览</h2>
             <div class="deploy-nodes" id="deployNodes">
+              <!-- Populated by JS from cluster API -->
               <div class="node-card glass">
-                <div class="node-header">
-                  <div class="node-status-dot online"></div>
-                  <span class="node-name" data-i18n="deploy_node_local">本机</span>
-                  <span class="node-badge" data-i18n="deploy_node_primary">主节点</span>
-                </div>
-                <div class="node-info">
-                  <div class="node-info-row">
-                    <span class="node-label" data-i18n="deploy_status">状态</span>
-                    <span class="node-value text-green" data-i18n="deploy_online">在线</span>
-                  </div>
-                  <div class="node-info-row">
-                    <span class="node-label">Tools</span>
-                    <span class="node-value">4 <span data-i18n="deploy_tools_synced">个工具已同步</span></span>
-                  </div>
-                  <div class="node-info-row">
-                    <span class="node-label" data-i18n="deploy_last_sync">上次同步</span>
-                    <span class="node-value" id="lastSyncTime">-</span>
-                  </div>
-                </div>
-                <div class="node-actions">
-                  <button class="btn btn-sm btn-primary" id="syncBtn">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
-                    <span data-i18n="deploy_sync">同步</span>
-                  </button>
+                <div class="node-info-row">
+                  <span class="node-value" data-i18n="deploy_loading">加载节点信息...</span>
                 </div>
               </div>
             </div>
@@ -472,11 +451,25 @@
           <div class="deploy-actions glass">
             <h2 class="section-title" data-i18n="deploy_actions">快捷操作</h2>
             <div class="deploy-action-list">
-              <button class="deploy-action-btn glass" id="genAllConfigsBtn">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+              <button class="deploy-action-btn glass" id="deployAllConfigsBtn">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
                 <div>
-                  <strong data-i18n="deploy_gen_configs">生成所有配置</strong>
-                  <span data-i18n="deploy_gen_configs_desc">为所有工具生成配置文件</span>
+                  <strong data-i18n="deploy_deploy_configs">部署配置到所有节点</strong>
+                  <span data-i18n="deploy_deploy_configs_desc">同步配置到所有机器</span>
+                </div>
+              </button>
+              <button class="deploy-action-btn glass" id="clusterStartBtn">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                <div>
+                  <strong data-i18n="deploy_cluster_start">集群开始抢票</strong>
+                  <span data-i18n="deploy_cluster_start_desc">在所有节点上启动抢票</span>
+                </div>
+              </button>
+              <button class="deploy-action-btn glass" id="clusterStopBtn">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
+                <div>
+                  <strong data-i18n="deploy_cluster_stop">集群停止</strong>
+                  <span data-i18n="deploy_cluster_stop_desc">停止所有节点上的抢票</span>
                 </div>
               </button>
               <button class="deploy-action-btn glass" id="exportAllBtn">

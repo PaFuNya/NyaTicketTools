@@ -1,22 +1,7 @@
 # =============================================================
-# NyaTickerTools - Ticket Configuration Template
+# NyaTicketTools - Ticket Configuration Template
 # =============================================================
 # Copy this file to config/tickets.yaml and configure your targets.
-# This file defines which events/tickets to purchase.
-# =============================================================
-
-# Global ticket purchasing settings
-global:
-  # How many seconds before sale start to begin attempting (pre-rush)
-  pre_rush_seconds: 5
-  # Maximum retry attempts per ticket
-  max_retries: 100
-  # Delay between retries in milliseconds
-  retry_delay_ms: 50
-  # Timeout for each API request in seconds
-  request_timeout: 10
-  # Enable cluster coordination (requires web UI or coordinator)
-  cluster_mode: false
 
 # Target events/tickets to purchase
 tickets:
@@ -25,39 +10,14 @@ tickets:
     project_id: "000000"              # Bilibili project ID (from event URL)
     screen_id: "000000"               # Screen/session ID
     sku_id: "000000"                  # SKU ID (ticket tier)
-    # Target ticket price tier name (for validation)
-    sku_name: "Standard ¥480"
-    # Number of tickets to buy
-    quantity: 1
-    # Which account(s) to use (by name, or "all")
-    account: "main"
-    # Which tool(s) to use (can specify multiple for fallback)
-    tools:
-      - "biliTickerBuy"
-      - "BHYG"
-    # Sale start time (ISO 8601 format, used for pre-rush timing)
-    sale_start: "2026-07-01T10:00:00+08:00"
-    # Whether this ticket target is enabled
+    pay_money: 48000                  # Price in fen (480 yuan = 48000)
+    quantity: 1                       # Number of tickets to buy
+    account: "main"                   # Account name (from accounts.yaml)
+    sale_start: "2026-07-01T10:00:00+08:00"  # ISO 8601 with timezone
+    is_hot_project: false             # Enable aggressive mode for hot events
     enabled: false                    # Set to true when ready
-
-  # Example: VIP ticket with multiple tools
-  # - name: "Example Concert VIP"
-  #   project_id: "000000"
-  #   screen_id: "000000"
-  #   sku_id: "000001"
-  #   sku_name: "VIP ¥1280"
-  #   quantity: 1
-  #   account: "main"
-  #   tools:
-  #     - "biliTickerBuy"
-  #     - "bili_ticket_rush"
-  #     - "bili-ticket-go"
-  #   sale_start: "2026-07-01T10:00:00+08:00"
-  #   enabled: false
 
 # Notification settings (optional)
 notifications:
-  # Enable purchase success/failure notifications
   enabled: false
-  # Webhook URL for notifications (e.g., Feishu, DingTalk, Bark)
-  # webhook: "https://open.feishu.cn/open-apis/bot/v2/hook/xxx"
+  webhook: ""  # Feishu/ServerChan/PushPlus/DingTalk webhook URL

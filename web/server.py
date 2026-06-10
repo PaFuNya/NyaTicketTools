@@ -30,8 +30,11 @@ SCRIPTS_DIR = PROJECT_ROOT / "scripts"
 LOGS_DIR = PROJECT_ROOT / "logs"
 PIDS_FILE = PROJECT_ROOT / ".pids"
 
+sys.path.insert(0, str(PROJECT_ROOT))
+
 START_TIME = time.time()
 AUTH_TOKEN = None  # Set via --token CLI arg
+SSE_CLIENTS = set()  # Connected SSE clients
 
 
 def check_auth(handler):
@@ -102,6 +105,39 @@ def uptime_str():
     h = secs // 3600
     m = (secs % 3600) // 60
     return f"{h}h {m}m"
+
+
+def send_sse(handler, event_type, data):
+    """Send a Server-Sent Event to a connected client."""
+    msg = f"event: {event_type}\ndata: {json.dumps(data, ensure_ascii=False)}\n\n"
+    try:
+        handler.wfile.write(msg.encode("utf-8"))
+        handler.wfile.flush()
+    except (BrokenPipeError, ConnectionResetError, OSError):
+        SSE_CLIENTS.discard(handler)
+        return False
+    return True
+
+
+def broadcast_sse(event_type, data):
+    """Broadcast SSE event to all connected clients."""
+    dead = set()
+    for client in SSE_CLIENTS:
+        if not send_sse(client, event_type, data):
+            dead.add(client)
+    SSE_CLIENTS.difference_update(dead)
+
+
+def init_engine():
+    """Initialize the local buy engine with event broadcasting."""
+    try:
+        from core.engine import get_engine
+        engine = get_engine()
+        engine.on_event = lambda e: broadcast_sse(e["type"], e)
+        return engine
+    except Exception as e:
+        print(f"Warning: Engine not available: {e}")
+        return None
 
 
 class APIHandler(BaseHTTPRequestHandler):
@@ -185,6 +221,10 @@ class APIHandler(BaseHTTPRequestHandler):
             return self._handle_get_tickets()
         if path == "/api/health":
             return self._handle_health()
+        if path == "/api/nodes":
+            return self._handle_get_nodes()
+        if path == "/api/events":
+            return self._handle_sse()
         if path.startswith("/api/tools/") and path.endswith("/log"):
             tool = path.split("/")[3]
             lines = int(qs.get("lines", ["100"])[0])
@@ -210,6 +250,12 @@ class APIHandler(BaseHTTPRequestHandler):
             return self._handle_config_generate()
         if path == "/api/notify":
             return self._handle_notify()
+        if path == "/api/cluster/start":
+            return self._handle_cluster_start()
+        if path == "/api/cluster/stop":
+            return self._handle_cluster_stop()
+        if path == "/api/cluster/deploy":
+            return self._handle_cluster_deploy()
 
         self._json({"error": "Not found"}, 404)
 
@@ -236,9 +282,6 @@ class APIHandler(BaseHTTPRequestHandler):
             "hostname": platform.node().split(".")[0].lower(),
             "tools": {
                 "biliTickerBuy": procs.get("biliTickerBuy", {"running": False, "pid": None}),
-                "BHYG": procs.get("BHYG", {"running": False, "pid": None}),
-                "bili_ticket_rush": procs.get("bili_ticket_rush", {"running": False, "pid": None}),
-                "bili-ticket-go": procs.get("bili-ticket-go", {"running": False, "pid": None}),
             },
             "sale_start": sale_start,
             "countdown_seconds": countdown,
@@ -265,29 +308,51 @@ class APIHandler(BaseHTTPRequestHandler):
         self._json({"ok": True})
 
     def _handle_tool_start(self):
+        """Start biliTickerBuy engine."""
         body = self._read_body()
         tool = body.get("tool", "")
+
+        if tool == "biliTickerBuy":
+            engine = init_engine()
+            if engine:
+                result = engine.start()
+                if result.get("ok"):
+                    broadcast_sse("tool_started", {"tool": tool, "status": engine.status})
+                return self._json(result)
+
+        # Fallback: use start_all.sh
         script = SCRIPTS_DIR / "start_all.sh"
         if not script.exists():
             return self._json({"ok": False, "error": "start_all.sh not found"}, 500)
         try:
             subprocess.Popen(
                 ["bash", str(script), "--tool", tool],
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
                 start_new_session=True,
             )
             time.sleep(0.5)
             pids = read_pids()
             info = pids.get(tool, {"running": False, "pid": None})
+            broadcast_sse("tool_started", {"tool": tool})
             self._json({"ok": True, **info})
         except Exception as e:
             self._json({"ok": False, "error": str(e)}, 500)
 
     def _handle_tool_stop(self):
+        """Stop biliTickerBuy engine."""
         body = self._read_body()
         tool = body.get("tool", "")
+
+        if tool == "biliTickerBuy":
+            engine = init_engine()
+            if engine:
+                result = engine.stop()
+                if result.get("ok"):
+                    broadcast_sse("tool_stopped", {"tool": tool})
+                return self._json(result)
+
         result = kill_tool(tool)
+        broadcast_sse("tool_stopped", {"tool": tool})
         self._json(result)
 
     def _handle_tool_log(self, tool, lines):
@@ -387,6 +452,68 @@ class APIHandler(BaseHTTPRequestHandler):
             "config_valid": config_ok,
             "uptime": uptime_str(),
         })
+
+    def _handle_sse(self):
+        """Server-Sent Events endpoint for real-time engine status."""
+        self.send_response(200)
+        self.send_header("Content-Type", "text/event-stream")
+        self.send_header("Cache-Control", "no-cache")
+        self.send_header("Connection", "keep-alive")
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.end_headers()
+        SSE_CLIENTS.add(self)
+        try:
+            send_sse(self, "connected", {"message": "SSE connected", "time": time.time()})
+            while True:
+                time.sleep(5)
+                send_sse(self, "heartbeat", {"time": time.time()})
+        except (BrokenPipeError, ConnectionResetError):
+            pass
+        finally:
+            SSE_CLIENTS.discard(self)
+
+    def _handle_get_nodes(self):
+        """Get cluster node status."""
+        try:
+            from core.cluster import get_cluster
+            cluster = get_cluster()
+            nodes = cluster.status_all()
+            self._json({"ok": True, "nodes": nodes})
+        except Exception as e:
+            self._json({"ok": False, "error": str(e), "nodes": {}})
+
+    def _handle_cluster_start(self):
+        """Start engines on all cluster nodes."""
+        try:
+            from core.cluster import get_cluster
+            cluster = get_cluster()
+            results = cluster.start_all()
+            broadcast_sse("cluster_start", {"results": results})
+            self._json({"ok": True, "results": results})
+        except Exception as e:
+            self._json({"ok": False, "error": str(e)})
+
+    def _handle_cluster_stop(self):
+        """Stop engines on all cluster nodes."""
+        try:
+            from core.cluster import get_cluster
+            cluster = get_cluster()
+            results = cluster.stop_all()
+            broadcast_sse("cluster_stop", {"results": results})
+            self._json({"ok": True, "results": results})
+        except Exception as e:
+            self._json({"ok": False, "error": str(e)})
+
+    def _handle_cluster_deploy(self):
+        """Deploy configs to all cluster nodes."""
+        try:
+            from core.cluster import get_cluster
+            cluster = get_cluster()
+            results = cluster.deploy_configs("all")
+            broadcast_sse("cluster_deploy", {"results": results})
+            self._json({"ok": all(r.get("ok") for r in results.values()), "results": results})
+        except Exception as e:
+            self._json({"ok": False, "error": str(e)})
 
     def log_message(self, format, *args):
         pass  # Suppress default access logs

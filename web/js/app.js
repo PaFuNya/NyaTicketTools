@@ -8,36 +8,13 @@
   // ---- Tool definitions ----
   const TOOLS = [
     {
-      id: 'biliTickerBuy', name: 'biliTickerBuy',
-      desc_zh: 'CLI 模式，全自动，最推荐',
-      desc_en: 'CLI mode, fully automated, recommended',
-      color: '#7C3AED', abbrev: 'BTB', lang: 'Python',
+      id: 'biliTickerBuy',
+      name: 'biliTickerBuy',
+      desc: 'Python-based ticket purchase automation',
+      color: '#7C3AED',
+      abbrev: 'BTB',
+      lang: 'Python',
       repo: 'https://github.com/mikumifa/biliTickerBuy',
-      automatable: true, platform: 'all', capability: 'auto',
-    },
-    {
-      id: 'BHYG', name: 'BHYG',
-      desc_zh: '终端工具，配置可自动生成',
-      desc_en: 'Terminal tool, config auto-generated',
-      color: '#3B82F6', abbrev: 'BHYG', lang: 'Python',
-      repo: 'https://github.com/ZianTT/BHYG',
-      automatable: true, platform: 'all', capability: 'auto',
-    },
-    {
-      id: 'bili_ticket_rush', name: 'bili_ticket_rush',
-      desc_zh: 'Rust GUI，需要桌面环境',
-      desc_en: 'Rust GUI, requires desktop',
-      color: '#10B981', abbrev: 'BTR', lang: 'Rust',
-      repo: 'https://github.com/Violiate/bili_ticket_rush',
-      automatable: false, platform: 'desktop', capability: 'gui',
-    },
-    {
-      id: 'bili-ticket-go', name: 'bili-ticket-go',
-      desc_zh: 'Go 二进制，仅 Linux/WSL',
-      desc_en: 'Go binary, Linux/WSL only',
-      color: '#F59E0B', abbrev: 'BTG', lang: 'Go',
-      repo: 'https://github.com/konaxia548/bili-ticket-go',
-      automatable: false, platform: 'linux', capability: 'linux',
     },
   ];
 
@@ -182,6 +159,7 @@
     });
     const titles = { dashboard: t('nav_dashboard'), accounts: t('nav_accounts'), tickets: t('nav_tickets'), tools: t('nav_tools'), deploy: t('nav_deploy') };
     pageTitle.textContent = titles[page] || page;
+    if (page === 'deploy') loadNodes();
     closeSidebar();
   }
 
@@ -962,28 +940,20 @@
   });
 
   // ---- Deploy actions ----
-  $('#syncBtn').addEventListener('click', async () => {
-    await syncAccountsToYAML();
-    await syncTicketsToYAML();
-    const result = await apiCall('/api/config/generate', { method: 'POST' });
-    if (result?.ok) {
-      showToast(t('deploy_synced'), 'success');
-    } else {
-      showToast(t('deploy_sync_warn'), 'warning');
-    }
-    $('#lastSyncTime').textContent = new Date().toLocaleString();
-  });
+  const deployAllBtn = $('#deployAllConfigsBtn');
+  if (deployAllBtn) deployAllBtn.addEventListener('click', deployToAllNodes);
 
-  $('#genAllConfigsBtn').addEventListener('click', async () => {
-    await syncAccountsToYAML();
-    await syncTicketsToYAML();
-    const result = await apiCall('/api/config/generate', { method: 'POST' });
-    if (result?.ok) {
-      showToast(t('deploy_gen_ok'), 'success');
-    } else {
-      showToast(t('deploy_gen_warn'), 'info');
-    }
-  });
+  const clusterStartBtn = $('#clusterStartBtn');
+  if (clusterStartBtn) clusterStartBtn.addEventListener('click', startCluster);
+
+  const clusterStopBtn = $('#clusterStopBtn');
+  if (clusterStopBtn) clusterStopBtn.addEventListener('click', stopCluster);
+
+  const genAllBtn = $('#genAllConfigsBtn');
+  if (genAllBtn) genAllBtn.addEventListener('click', deployToAllNodes);
+
+  const syncBtn = $('#syncBtn');
+  if (syncBtn) syncBtn.addEventListener('click', deployToAllNodes);
 
   $('#exportAllBtn').addEventListener('click', () => {
     const data = { accounts, tickets, toolStates, exportedAt: new Date().toISOString(), version: '0.2.0' };
@@ -1323,8 +1293,144 @@
     URL.revokeObjectURL(url);
   }
 
-  // ---- Render all ----
-  function renderAll() {
+  // ---- SSE connection for real-time events ----
+  let sseConnection = null;
+
+  function connectSSE() {
+    if (sseConnection) {
+      sseConnection.close();
+    }
+    try {
+      sseConnection = new EventSource(`${API_BASE}/api/events`);
+      sseConnection.addEventListener('connected', () => {
+        const dot = $('#connectionStatus');
+        if (dot) dot.className = 'connection-status connected';
+        const label = $('#connectionLabel');
+        if (label) label.textContent = t('conn_connected');
+      });
+
+      sseConnection.addEventListener('engine_started', (e) => {
+        const data = JSON.parse(e.data);
+        showToast(data.message || 'Engine started', 'info');
+        loadStateFromAPI().then(() => {
+          renderDashboard();
+          renderTools();
+        });
+      });
+
+      sseConnection.addEventListener('tool_started', (e) => {
+        loadStateFromAPI().then(() => {
+          renderDashboard();
+          renderTools();
+        });
+      });
+
+      sseConnection.addEventListener('tool_stopped', (e) => {
+        loadStateFromAPI().then(() => {
+          renderDashboard();
+          renderTools();
+        });
+      });
+
+      sseConnection.addEventListener('order_success', (e) => {
+        const data = JSON.parse(e.data);
+        showToast(t('tool_status_success') + '!', 'success');
+        playSaleStartSound();
+        sendNotification('NyaTicketTools', data.message || 'Order successful!');
+        sendWebhook('NyaTicketTools', data.message || 'Order successful!');
+        loadStateFromAPI().then(() => {
+          renderDashboard();
+          renderTools();
+        });
+      });
+
+      sseConnection.addEventListener('engine_error', (e) => {
+        const data = JSON.parse(e.data);
+        showToast(data.message || 'Engine error', 'error');
+      });
+
+      sseConnection.addEventListener('cluster_deploy', () => {
+        showToast(t('deploy_synced'), 'success');
+        $('#lastSyncTime').textContent = new Date().toLocaleString();
+      });
+
+      sseConnection.onerror = () => {
+        const dot = $('#connectionStatus');
+        if (dot) dot.className = 'connection-status disconnected';
+        const label = $('#connectionLabel');
+        if (label) label.textContent = t('conn_disconnected');
+        setTimeout(connectSSE, 5000);
+      };
+    } catch (e) {
+      setTimeout(connectSSE, 5000);
+    }
+  }
+
+  // ---- Cluster API helpers ----
+  async function deployToAllNodes() {
+    const result = await apiCall('/api/cluster/deploy', { method: 'POST' });
+    if (result?.ok) {
+      showToast(t('deploy_synced'), 'success');
+    } else {
+      showToast(t('deploy_sync_warn'), 'warning');
+    }
+    $('#lastSyncTime').textContent = new Date().toLocaleString();
+  }
+
+  async function startCluster() {
+    const result = await apiCall('/api/cluster/start', { method: 'POST' });
+    if (result?.ok) {
+      showToast(t('tool_auto_starting'), 'success');
+    }
+  }
+
+  async function stopCluster() {
+    const result = await apiCall('/api/cluster/stop', { method: 'POST' });
+    if (result?.ok) {
+      showToast(t('tool_auto_stopping'), 'info');
+    }
+  }
+
+  async function loadNodes() {
+    const result = await apiCall('/api/nodes');
+    if (result?.ok) {
+      renderNodes(result.nodes);
+    }
+  }
+
+  function renderNodes(nodes) {
+    const container = $('#deployNodes');
+    if (!container || !nodes) return;
+    let html = '';
+    for (const [name, node] of Object.entries(nodes)) {
+      const statusClass = node.status === 'online' ? 'online' : 'offline';
+      const engineStatus = node.engine_running
+        ? `<span class="tool-badge auto">${t('tool_status_running')}</span>`
+        : '';
+      html += `
+        <div class="node-card glass">
+          <div class="node-header">
+            <div class="node-status-dot ${statusClass}"></div>
+            <span class="node-name">${name}</span>
+            <span class="node-badge">${node.host}</span>
+            ${engineStatus}
+          </div>
+          <div class="node-info">
+            <div class="node-info-row">
+              <span class="node-label">${t('deploy_status')}</span>
+              <span class="node-value ${node.status === 'online' ? 'text-green' : 'text-red'}">
+                ${node.status === 'online' ? t('deploy_online') : t('deploy_offline')}
+              </span>
+            </div>
+            <div class="node-info-row">
+              <span class="node-label">${t('deploy_last_sync')}</span>
+              <span class="node-value">${node.last_sync || '-'}</span>
+            </div>
+          </div>
+        </div>`;
+    }
+    container.innerHTML = html || `<div class="node-card glass"><span>${getLang() === 'zh-CN' ? '暂无远程节点' : 'No remote nodes'}</span></div>`;
+  }
     updateI18nDOM();
     renderDashboard();
     renderTools();
@@ -1364,6 +1470,9 @@
       renderDashboard();
       renderTools();
     }, 10000);
+
+    // SSE real-time events
+    connectSSE();
 
     // Schedule if ticket has sale time
     if (tickets.length && tickets[0].saleTime) {
