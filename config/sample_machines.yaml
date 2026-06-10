@@ -1,0 +1,35 @@
+# =============================================================
+# NyaTickerTools - Machine Configuration Template
+# =============================================================
+# Copy this file to config/machines.yaml and configure your deployment targets.
+# Used by scripts/deploy.sh for remote deployment.
+# =============================================================
+
+machines:
+  # Example: VPS server
+  server1:
+    host: "192.168.1.100"          # SSH hostname or IP
+    user: "root"                   # SSH user
+    port: 22                       # SSH port
+    remote_path: "/opt/NyaTickerTools"  # Where to deploy on remote
+    accounts:                      # Which accounts to assign to this machine
+      - "main"
+
+  # Example: Second server
+  # server2:
+  #   host: "10.0.0.2"
+  #   user: "deploy"
+  #   port: 22
+  #   remote_path: "/opt/NyaTickerTools"
+  #   accounts:
+  #     - "alt"
+
+  # Example: Local machine (hostname-based)
+  # my-desktop:
+  #   host: "192.168.1.50"
+  #   user: "user"
+  #   port: 22
+  #   remote_path: "/home/user/NyaTickerTools"
+  #   accounts:
+  #     - "main"
+  #     - "alt"
