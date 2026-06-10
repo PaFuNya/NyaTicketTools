@@ -227,41 +227,36 @@ NyaTicketTools/
 accounts:
   - name: "主号"
     uid: "123456789"
-    cookies:
-      SESSDATA: "your_sessdata"
-      bili_jct: "your_bili_jct"
-      DedeUserID: "your_dede_uid"
-    assign_to: ["pc", "cloud"]
+    cookie: "SESSDATA=your_sessdata; bili_jct=your_bili_jct; DedeUserID=your_dede_uid"
+    enabled: true
 ```
 
 ### 票务配置 (config/tickets.yaml)
 
 ```yaml
-target:
-  project_id: 12345
-  screen_id: 67890
-  sku_id: 11111
-  pay_money: 12800    # 单位：分
-  count: 2
-
-sale_time:
-  rush_time: "2026-07-01 10:00:00"
-  advance_ms: 500     # 提前 500ms 开始请求
-
-buyer:
-  - name: "张三"
-    tel: "13800138000"
-    id_card: "110101xxxxxxxxxxxx"
+tickets:
+  - name: "示例演唱会"
+    project_id: "12345"
+    screen_id: "67890"
+    sku_id: "11111"
+    pay_money: 48000
+    quantity: 1
+    account: "主号"
+    tools:
+      - "biliTickerBuy"
+    sale_start: "2026-07-01T10:00:00+08:00"
+    enabled: false
 ```
 
 ### 机器配置 (config/machines.yaml)
 
 ```yaml
 machines:
-  - name: "cloud"
+  server1:
     host: "1.2.3.4"
     user: "root"
     port: 22
+    remote_path: "/opt/NyaTicketTools"
     accounts: ["主号"]
 ```
 

@@ -1,0 +1,63 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+case "${1:-}" in
+  setup)
+    shift
+    exec bash "$SCRIPT_DIR/scripts/setup.sh" "$@"
+    ;;
+  config|configure)
+    shift
+    exec python3 "$SCRIPT_DIR/scripts/inject_config.py" "$@"
+    ;;
+  start)
+    shift
+    exec bash "$SCRIPT_DIR/scripts/start_all.sh" "$@"
+    ;;
+  stop)
+    shift
+    exec bash "$SCRIPT_DIR/scripts/stop_all.sh" "$@"
+    ;;
+  deploy)
+    shift
+    exec bash "$SCRIPT_DIR/scripts/deploy.sh" "$@"
+    ;;
+  dashboard)
+    shift
+    exec python3 "$SCRIPT_DIR/web/server.py" "$@"
+    ;;
+  status)
+    bash "$SCRIPT_DIR/scripts/health_check.sh"
+    ;;
+  logs)
+    TOOL="${2:-}"
+    if [[ -z "$TOOL" ]]; then
+      tail -f "$SCRIPT_DIR/logs"/*.log 2>/dev/null || echo "No logs found"
+    else
+      tail -f "$SCRIPT_DIR/logs/$TOOL.log" 2>/dev/null || echo "No log for $TOOL"
+    fi
+    ;;
+  clean)
+    shift
+    exec bash "$SCRIPT_DIR/scripts/clean.sh" "$@"
+    ;;
+  -h|--help|help)
+    echo "NyaTicketTools - Usage:"
+    echo "  nyaticket setup [--quick]         Install all tools"
+    echo "  nyaticket config [--dry-run]       Generate tool configs"
+    echo "  nyaticket start [--tool <name>]    Start tools"
+    echo "  nyaticket stop                     Stop all tools"
+    echo "  nyaticket deploy <machine|all>     Deploy to machines"
+    echo "  nyaticket dashboard                Start web dashboard"
+    echo "  nyaticket status                   Health check"
+    echo "  nyaticket logs [tool]              View logs"
+    echo "  nyaticket clean [--tools|--all]    Clean up"
+    ;;
+  *)
+    echo "Unknown command: ${1:-}"
+    echo "Run 'nyaticket --help'"
+    exit 1
+    ;;
+esac

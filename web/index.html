@@ -60,6 +60,9 @@
       </button>
       <h1 class="page-title" id="pageTitle">Dashboard</h1>
       <div class="topbar-actions">
+        <div class="connection-status disconnected" id="connectionStatus" title="Checking backend...">
+          <span class="status-dot-indicator"></span>
+        </div>
         <button class="btn btn-ghost" id="exportBtn" title="Export config">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
           <span class="btn-label">Export</span>
@@ -76,6 +79,10 @@
 
       <!-- ===== DASHBOARD PAGE ===== -->
       <section class="page active" id="page-dashboard">
+        <div class="countdown-card glass" id="countdownCard">
+          <div class="countdown-label">Sale Countdown</div>
+          <div class="countdown-value" id="countdownDisplay">--:--:--</div>
+        </div>
         <div class="stats-grid">
           <div class="stat-card glass">
             <div class="stat-icon" style="--accent: #7C3AED">
@@ -149,6 +156,10 @@
                 <h3 class="form-section-title">Project Info</h3>
                 <div class="form-grid">
                   <div class="form-group">
+                    <label for="ticketName">Ticket Name</label>
+                    <input type="text" id="ticketName" placeholder="e.g. 周杰伦演唱会" class="form-input">
+                  </div>
+                  <div class="form-group">
                     <label for="projectId">Project ID</label>
                     <input type="text" id="projectId" placeholder="e.g. 12345" class="form-input">
                   </div>
@@ -172,6 +183,10 @@
                     <label for="saleTime">Sale Time</label>
                     <input type="datetime-local" id="saleTime" class="form-input">
                   </div>
+                  <div class="form-group">
+                    <label for="isHotProject">Hot Project</label>
+                    <label class="checkbox-label"><input type="checkbox" id="isHotProject"> Enable hot project mode</label>
+                  </div>
                 </div>
               </div>
               <div class="form-section">
@@ -189,6 +204,54 @@
                     <label for="buyerIdCard">ID Card</label>
                     <input type="text" id="buyerIdCard" placeholder="ID card number" class="form-input">
                   </div>
+                </div>
+              </div>
+              <div class="form-section">
+                <h3 class="form-section-title">Tool & Account</h3>
+                <div class="form-grid">
+                  <div class="form-group">
+                    <label>Select Tools</label>
+                    <div class="checkbox-group" id="toolCheckboxes">
+                      <label class="checkbox-label"><input type="checkbox" value="biliTickerBuy" checked> biliTickerBuy</label>
+                      <label class="checkbox-label"><input type="checkbox" value="BHYG"> BHYG</label>
+                      <label class="checkbox-label"><input type="checkbox" value="bili_ticket_rush"> bili_ticket_rush</label>
+                      <label class="checkbox-label"><input type="checkbox" value="bili-ticket-go"> bili-ticket-go</label>
+                    </div>
+                  </div>
+                  <div class="form-group">
+                    <label for="ticketAccount">Account</label>
+                    <select id="ticketAccount" class="form-input">
+                      <option value="">-- Select account --</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+              <div class="form-section">
+                <h3 class="form-section-title">Delivery Info</h3>
+                <div class="form-grid">
+                  <div class="form-group">
+                    <label for="deliverName">Recipient Name</label>
+                    <input type="text" id="deliverName" class="form-input">
+                  </div>
+                  <div class="form-group">
+                    <label for="deliverTel">Recipient Phone</label>
+                    <input type="tel" id="deliverTel" class="form-input">
+                  </div>
+                  <div class="form-group">
+                    <label for="deliverAddrId">Address ID</label>
+                    <input type="text" id="deliverAddrId" class="form-input">
+                  </div>
+                  <div class="form-group">
+                    <label for="deliverAddr">Address</label>
+                    <input type="text" id="deliverAddr" class="form-input">
+                  </div>
+                </div>
+              </div>
+              <div class="form-section">
+                <h3 class="form-section-title">Notifications</h3>
+                <div class="form-group">
+                  <label for="webhookUrl">Webhook URL</label>
+                  <input type="url" id="webhookUrl" placeholder="https://open.feishu.cn/..." class="form-input">
                 </div>
               </div>
               <div class="form-actions">

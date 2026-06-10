@@ -46,18 +46,24 @@ BTB_CONFIG="$CONFIG_DIR/generated/biliTickerBuy/config.json"
 # ── Parse arguments ───────────────────────────────────────────
 
 TOOL_FILTER=""
+DRY_RUN=false
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --tool)
             TOOL_FILTER="$2"
             shift 2
             ;;
+        --dry-run)
+            DRY_RUN=true
+            shift
+            ;;
         -h|--help)
-            echo "Usage: $0 [--tool <name>]"
+            echo "Usage: $0 [--tool <name>] [--dry-run]"
             echo ""
             echo "Options:"
             echo "  --tool <name>   Start only the specified tool"
             echo "                  (biliTickerBuy, bili-ticket-go)"
+            echo "  --dry-run       Show what would be started without starting"
             echo "  -h, --help      Show this help"
             exit 0
             ;;
@@ -92,6 +98,9 @@ echo -e "${NC}\n"
 
 # Create logs directory
 mkdir -p "$LOGS_DIR"
+
+# Rotate old logs (keep 7 days)
+find "$LOGS_DIR" -name "*.log" -mtime +7 -delete 2>/dev/null || true
 
 # Initialize PID file
 if [[ -f "$PIDS_FILE" ]]; then
@@ -191,7 +200,14 @@ start_btb() {
         return
     fi
 
-    local log_file="$LOGS_DIR/biliTickerBuy.log"
+    local timestamp=$(date +%Y%m%d-%H%M%S)
+    local log_file="$LOGS_DIR/biliTickerBuy-${timestamp}.log"
+
+    if [[ "$DRY_RUN" == true ]]; then
+        info "[DRY RUN] Would start biliTickerBuy with config: $BTB_CONFIG"
+        info "  Log: $log_file"
+        return
+    fi
 
     # Start in background
     cd "$BTB_DIR"
@@ -243,16 +259,24 @@ start_btg() {
 
     chmod +x "$binary"
 
-    local log_file="$LOGS_DIR/bili-ticket-go.log"
+    local timestamp=$(date +%Y%m%d-%H%M%S)
+    local log_file="$LOGS_DIR/bili-ticket-go-${timestamp}.log"
+    local btg_port="${BTG_PORT:-8081}"
 
-    # Start in web mode on port 8080
-    "$binary" -web -port 8080 -host 0.0.0.0 \
+    if [[ "$DRY_RUN" == true ]]; then
+        info "[DRY RUN] Would start bili-ticket-go on port $btg_port"
+        info "  Log: $log_file"
+        return
+    fi
+
+    # Start in web mode
+    "$binary" -web -port "$btg_port" -host 0.0.0.0 \
         > "$log_file" 2>&1 &
     local pid=$!
 
     log_pid "bili-ticket-go" "$pid"
     info "  Log: $log_file"
-    info "  Web UI: http://$(hostname -I | awk '{print $1}'):8080"
+    info "  Web UI: http://$(hostname -I | awk '{print $1}'):${btg_port}"
 }
 
 # ── Main ──────────────────────────────────────────────────────
@@ -275,6 +299,24 @@ else
     if should_start "bili-ticket-go"; then
         warn "No enabled tickets use bili-ticket-go. Skipping."
     fi
+fi
+
+# ── Start Web Dashboard ──────────────────────────────────────
+
+if [[ "$DRY_RUN" == false ]]; then
+    if [[ -f "$PROJECT_ROOT/web/server.py" ]]; then
+        info "Starting Web Dashboard..."
+        WEB_PORT="${WEB_PORT:-8090}"
+        WEB_LOG="$LOGS_DIR/web-dashboard-$(date +%Y%m%d-%H%M%S).log"
+        python3 "$PROJECT_ROOT/web/server.py" --port "$WEB_PORT" \
+            > "$WEB_LOG" 2>&1 &
+        log_pid "web-dashboard" "$!"
+        info "  Dashboard: http://$(hostname -I | awk '{print $1}'):${WEB_PORT}"
+        info "  Log: $WEB_LOG"
+        ((started++))
+    fi
+else
+    info "[DRY RUN] Would start Web Dashboard on port ${WEB_PORT:-8090}"
 fi
 
 echo

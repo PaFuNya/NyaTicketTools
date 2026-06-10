@@ -146,7 +146,7 @@ deploy_to() {
         -avz
         --progress
         --delete
-        -e "ssh -p ${port} -o StrictHostKeyChecking=accept-new"
+        -e "ssh -p ${port} -o StrictHostKeyChecking=yes"
         --exclude='.git/'
         --exclude='tools/'                    # Don't sync cloned tool repos
         --exclude='__pycache__/'

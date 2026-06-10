@@ -14,7 +14,7 @@
       color: '#7C3AED',
       abbrev: 'BTB',
       lang: 'Python',
-      repo: 'https://github.com/NyaTicker/biliTickerBuy',
+      repo: 'https://github.com/mikumifa/biliTickerBuy',
     },
     {
       id: 'BHYG',
@@ -22,8 +22,8 @@
       desc: 'High-speed Bilibili helper',
       color: '#3B82F6',
       abbrev: 'BHYG',
-      lang: 'Go',
-      repo: 'https://github.com/NyaTicker/BHYG',
+      lang: 'Python',
+      repo: 'https://github.com/ZianTT/BHYG',
     },
     {
       id: 'bili_ticket_rush',
@@ -31,8 +31,8 @@
       desc: 'Rush-grab ticket tool',
       color: '#10B981',
       abbrev: 'BTR',
-      lang: 'Python',
-      repo: 'https://github.com/NyaTicker/bili_ticket_rush',
+      lang: 'Rust',
+      repo: 'https://github.com/Violiate/bili_ticket_rush',
     },
     {
       id: 'bili-ticket-go',
@@ -41,9 +41,26 @@
       color: '#F59E0B',
       abbrev: 'BTG',
       lang: 'Go',
-      repo: 'https://github.com/NyaTicker/bili-ticket-go',
+      repo: 'https://github.com/konaxia548/bili-ticket-go',
     },
   ];
+
+  // ---- API Communication ----
+  const API_BASE = 'http://localhost:8090';
+
+  async function apiCall(path, options = {}) {
+    try {
+      const res = await fetch(`${API_BASE}${path}`, {
+        headers: { 'Content-Type': 'application/json', ...options.headers },
+        ...options,
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return await res.json();
+    } catch (e) {
+      console.warn(`API unavailable (${path}):`, e.message);
+      return null;
+    }
+  }
 
   // ---- Storage helpers ----
   const STORAGE_KEYS = {
@@ -329,39 +346,51 @@
   // ---- Render: Ticket config preview ----
   function renderTicketPreview() {
     const data = gatherTicketForm();
-    const isEmpty = Object.values(data).every(v => !v);
+    const isEmpty = Object.values(data).every(v => !v || (Array.isArray(v) && !v.length));
     const code = $('#configCode');
     if (isEmpty) {
       code.textContent = '// Fill in the form to see the generated config';
       return;
     }
     const config = {
-      project_id: data.projectId || '',
-      screen_id: data.screenId || '',
-      sku_id: data.skuId || '',
-      pay_money: data.payMoney ? parseInt(data.payMoney) : 0,
-      count: data.count ? parseInt(data.count) : 1,
-      sale_time: data.saleTime || '',
-      buyer: {
-        name: data.buyerName || '',
-        phone: data.buyerPhone || '',
-        id_card: data.buyerIdCard || '',
-      },
+      name: data.name || 'Unnamed Ticket',
+      project_id: data.projectId,
+      screen_id: data.screenId,
+      sku_id: data.skuId,
+      pay_money: parseInt(data.payMoney) || 0,
+      count: parseInt(data.count) || 1,
+      sale_start: data.saleTime,
+      is_hot_project: data.isHotProject,
+      tools: data.tools,
+      account: data.account,
+      buyer_info: [{ name: data.buyerName, tel: data.buyerPhone, id_card: data.buyerIdCard }],
+      deliver_info: { name: data.deliverName, tel: data.deliverTel, addr_id: data.deliverAddrId, addr: data.deliverAddr },
+      webhook: data.webhookUrl,
     };
     code.textContent = JSON.stringify(config, null, 2);
   }
 
   function gatherTicketForm() {
+    const tools = [...$$('#toolCheckboxes input:checked')].map(cb => cb.value);
     return {
+      name: ($('#ticketName') || {}).value?.trim() || '',
       projectId: $('#projectId').value.trim(),
       screenId: $('#screenId').value.trim(),
       skuId: $('#skuId').value.trim(),
       payMoney: $('#payMoney').value.trim(),
       count: $('#ticketCount').value.trim(),
       saleTime: $('#saleTime').value,
+      isHotProject: ($('#isHotProject') || {}).checked || false,
+      tools: tools,
+      account: ($('#ticketAccount') || {}).value || '',
       buyerName: $('#buyerName').value.trim(),
       buyerPhone: $('#buyerPhone').value.trim(),
       buyerIdCard: $('#buyerIdCard').value.trim(),
+      deliverName: ($('#deliverName') || {}).value?.trim() || '',
+      deliverTel: ($('#deliverTel') || {}).value?.trim() || '',
+      deliverAddrId: ($('#deliverAddrId') || {}).value?.trim() || '',
+      deliverAddr: ($('#deliverAddr') || {}).value?.trim() || '',
+      webhookUrl: ($('#webhookUrl') || {}).value?.trim() || '',
     };
   }
 
@@ -442,16 +471,33 @@
     closeAccountModal();
   });
 
-  // ---- Tool toggle (start/stop simulation) ----
-  window.__toggleTool = function(toolId) {
+  // ---- Tool toggle (start/stop via API) ----
+  window.__toggleTool = async function(toolId) {
     const state = toolStates[toolId] || { status: 'idle', lastRun: null };
     if (state.status === 'running') {
-      state.status = 'idle';
-      showToast(`${toolId} stopped`, 'info');
+      const result = await apiCall('/api/tools/stop', {
+        method: 'POST', body: JSON.stringify({ tool: toolId })
+      });
+      if (result?.ok) {
+        state.status = 'idle';
+        showToast(`${toolId} stopped`, 'info');
+      } else {
+        showToast(`Failed to stop ${toolId}`, 'error');
+      }
     } else {
-      state.status = 'running';
-      state.lastRun = Date.now();
-      showToast(`${toolId} started`, 'success');
+      const result = await apiCall('/api/tools/start', {
+        method: 'POST', body: JSON.stringify({ tool: toolId })
+      });
+      if (result?.ok) {
+        state.status = 'running';
+        state.lastRun = Date.now();
+        showToast(`${toolId} started`, 'success');
+      } else {
+        // Fallback to local simulation
+        state.status = 'running';
+        state.lastRun = Date.now();
+        showToast(`${toolId} started (local)`, 'success');
+      }
     }
     toolStates[toolId] = state;
     save(STORAGE_KEYS.toolStates, toolStates);
@@ -504,9 +550,14 @@
   });
 
   // ---- Deploy actions ----
-  $('#syncBtn').addEventListener('click', () => {
+  $('#syncBtn').addEventListener('click', async () => {
+    const result = await apiCall('/api/config/generate', { method: 'POST' });
+    if (result?.ok) {
+      showToast('Configs generated', 'success');
+    } else {
+      showToast('API unavailable - check local config', 'warning');
+    }
     $('#lastSyncTime').textContent = new Date().toLocaleString();
-    showToast('Sync completed', 'success');
   });
 
   $('#genAllConfigsBtn').addEventListener('click', () => {
@@ -584,19 +635,110 @@
     URL.revokeObjectURL(url);
   }
 
+  // ---- Countdown timer ----
+  function updateCountdown() {
+    const display = $('#countdownDisplay');
+    if (!display) return;
+    const ticketData = load(STORAGE_KEYS.tickets);
+    const saleTime = ticketData[0]?.saleTime || ticketData[0]?.sale_start;
+    if (!saleTime) {
+      display.textContent = '--:--:--';
+      return;
+    }
+    const target = new Date(saleTime).getTime();
+    const now = Date.now();
+    const diff = Math.max(0, target - now);
+
+    if (diff === 0) {
+      display.textContent = 'NOW!';
+      const card = $('#countdownCard');
+      if (card) card.classList.add('urgent');
+      return;
+    }
+
+    const h = Math.floor(diff / 3600000);
+    const m = Math.floor((diff % 3600000) / 60000);
+    const s = Math.floor((diff % 60000) / 1000);
+    const d = Math.floor(h / 24);
+
+    if (d > 0) {
+      display.textContent = `${d}d ${String(h%24).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+    } else {
+      display.textContent = `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+    }
+
+    if (diff < 60000) {
+      const card = $('#countdownCard');
+      if (card) card.classList.add('urgent');
+    }
+  }
+  setInterval(updateCountdown, 1000);
+
+  // ---- Load state from API ----
+  async function loadStateFromAPI() {
+    const status = await apiCall('/api/status');
+    if (status) {
+      for (const [name, info] of Object.entries(status.tools || {})) {
+        toolStates[name] = {
+          status: info.running ? 'running' : 'idle',
+          lastRun: info.running ? Date.now() : (toolStates[name]?.lastRun || null),
+        };
+      }
+      save(STORAGE_KEYS.toolStates, toolStates);
+
+      // Update connection indicator
+      const dot = $('#connectionStatus');
+      if (dot) dot.className = 'connection-status connected';
+
+      // Update node count
+      const nodeEl = $('#statNodes');
+      if (nodeEl && status.node_count) nodeEl.textContent = status.node_count;
+    } else {
+      const dot = $('#connectionStatus');
+      if (dot) dot.className = 'connection-status disconnected';
+    }
+
+    // Also try loading accounts from API
+    const accData = await apiCall('/api/accounts');
+    if (accData?.accounts) {
+      accounts = accData.accounts.map((a, i) => ({
+        id: a.name || `acc_${i}`,
+        name: a.name || '',
+        uid: a.uid || '',
+        sessdata: '',
+        biliJct: '',
+        dedeUserId: '',
+        cookie: a.cookie || '',
+        enabled: a.enabled !== false,
+      }));
+      save(STORAGE_KEYS.accounts, accounts);
+    }
+  }
+
+  // ---- Populate account select dropdown ----
+  function populateAccountSelect() {
+    const select = $('#ticketAccount');
+    if (!select) return;
+    select.innerHTML = '<option value="">-- Select account --</option>' +
+      accounts.map(a => `<option value="${escHtml(a.name)}">${escHtml(a.name)}</option>`).join('');
+  }
+
   // ---- Render all ----
   function renderAll() {
     renderDashboard();
     renderTools();
     renderAccounts();
+    populateAccountSelect();
     renderTicketPreview();
   }
 
   // ---- Init ----
-  function init() {
+  async function init() {
+    await loadStateFromAPI();
     renderAll();
     if (tickets.length) populateTicketForm(tickets[0]);
     initCardHover();
+    updateCountdown();
 
     // Entrance animation
     gsap.from('.sidebar', { x: -40, opacity: 0, duration: 0.6, ease: 'power3.out' });
@@ -618,6 +760,13 @@
 
     // Count up stats
     setTimeout(animateStatValues, 300);
+
+    // Periodic status refresh
+    setInterval(async () => {
+      await loadStateFromAPI();
+      renderDashboard();
+      renderTools();
+    }, 10000);
   }
 
   // Wait for GSAP

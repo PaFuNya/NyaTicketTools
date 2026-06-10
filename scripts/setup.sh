@@ -46,25 +46,31 @@ TOOLS_DIR="$PROJECT_ROOT/tools"
 
 # Tool repos
 BTB_REPO="https://github.com/mikumifa/biliTickerBuy.git"
-BHYG_REPO="https://github.com/HanFa/BHYG.git"
-RUSH_REPO="https://github.com/biliup/bili_ticket_rush.git"
-BTG_REPO="https://github.com/biliup/bili-ticket-go.git"
+BHYG_REPO="https://github.com/ZianTT/BHYG.git"
+RUSH_REPO="https://github.com/Violiate/bili_ticket_rush.git"
+BTG_REPO="https://github.com/konaxia548/bili-ticket-go.git"
 
 # ── Parse arguments ───────────────────────────────────────────
 
 QUICK_MODE=false
+STATUS_MODE=false
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --quick)
             QUICK_MODE=true
             shift
             ;;
+        --status)
+            STATUS_MODE=true
+            shift
+            ;;
         -h|--help)
-            echo "Usage: $0 [--quick]"
+            echo "Usage: $0 [--quick] [--status]"
             echo ""
             echo "Options:"
-            echo "  --quick   Quick mode: only install deps, skip git clones"
-            echo "  -h        Show this help"
+            echo "  --quick    Quick mode: only install deps, skip git clones"
+            echo "  --status   Check tool versions and update availability"
+            echo "  -h         Show this help"
             exit 0
             ;;
         *)
@@ -73,6 +79,35 @@ while [[ $# -gt 0 ]]; do
             ;;
     esac
 done
+
+# ── Status check mode ─────────────────────────────────────────
+
+if [[ "$STATUS_MODE" == true ]]; then
+    echo -e "\n${MAGENTA}"
+    echo "  ╔══════════════════════════════════════════╗"
+    echo "  ║   NyaTickerTools - Tool Status           ║"
+    echo "  ╚══════════════════════════════════════════╝"
+    echo -e "${NC}\n"
+
+    for tool in biliTickerBuy BHYG bili_ticket_rush bili-ticket-go; do
+        dir="$TOOLS_DIR/$tool"
+        if [[ -d "$dir/.git" ]]; then
+            local_hash=$(git -C "$dir" log -1 --format=%h 2>/dev/null || echo "unknown")
+            remote_hash=$(git -C "$dir" ls-remote origin HEAD 2>/dev/null | awk '{print substr($1,1,7)}' || echo "unknown")
+            if [[ "$local_hash" == "$remote_hash" ]]; then
+                ok "$tool: $local_hash (up to date)"
+            else
+                warn "$tool: $local_hash (update available: $remote_hash)"
+            fi
+        elif [[ -d "$dir" ]]; then
+            warn "$tool: directory exists but not a git repo"
+        else
+            err "$tool: not installed"
+        fi
+    done
+    echo
+    exit 0
+fi
 
 # ── Platform detection ────────────────────────────────────────
 
@@ -153,14 +188,17 @@ if [[ "$QUICK_MODE" == false ]]; then
         local name="$1" repo="$2" dir="$TOOLS_DIR/$name"
         if [[ -d "$dir/.git" ]]; then
             info "Updating ${BOLD}${name}${NC}..."
-            (cd "$dir" && git pull --rebase 2>/dev/null) || warn "  Update failed for ${name}."
-            ok "  ${name} is up to date."
+            if ! (cd "$dir" && git pull --rebase); then
+                warn "  Update failed for ${name}."
+            else
+                ok "  ${name} is up to date."
+            fi
         else
             info "Cloning ${BOLD}${name}${NC}..."
-            git clone --depth 1 "$repo" "$dir" 2>/dev/null || {
+            if ! git clone --depth 1 "$repo" "$dir"; then
                 err "  Failed to clone ${name} from ${repo}"
                 return 1
-            }
+            fi
             ok "  Cloned ${name}."
         fi
     }
@@ -186,41 +224,51 @@ if [[ "$HAS_PYTHON" == true && "$HAS_PIP" == true ]]; then
     # biliTickerBuy deps
     if [[ -f "$TOOLS_DIR/biliTickerBuy/requirements.txt" ]]; then
         info "Installing biliTickerBuy dependencies..."
-        pip3 install -r "$TOOLS_DIR/biliTickerBuy/requirements.txt" --quiet 2>/dev/null || \
-        pip install -r "$TOOLS_DIR/biliTickerBuy/requirements.txt" --quiet 2>/dev/null || \
-        warn "Failed to install biliTickerBuy deps."
+        if ! pip3 install -r "$TOOLS_DIR/biliTickerBuy/requirements.txt" --quiet; then
+            if ! pip install -r "$TOOLS_DIR/biliTickerBuy/requirements.txt" --quiet; then
+                warn "Failed to install biliTickerBuy deps."
+            fi
+        fi
         ok "biliTickerBuy dependencies installed."
     else
         # Try pip install from setup.py/pyproject.toml
         if [[ -d "$TOOLS_DIR/biliTickerBuy" ]]; then
             info "Installing biliTickerBuy via pip..."
-            pip3 install "$TOOLS_DIR/biliTickerBuy/" --quiet 2>/dev/null || \
-            pip install "$TOOLS_DIR/biliTickerBuy/" --quiet 2>/dev/null || \
-            warn "Failed to install biliTickerBuy."
+            if ! pip3 install "$TOOLS_DIR/biliTickerBuy/" --quiet; then
+                if ! pip install "$TOOLS_DIR/biliTickerBuy/" --quiet; then
+                    warn "Failed to install biliTickerBuy."
+                fi
+            fi
         fi
     fi
 
     # BHYG deps
     if [[ -f "$TOOLS_DIR/BHYG/requirements.txt" ]]; then
         info "Installing BHYG dependencies..."
-        pip3 install -r "$TOOLS_DIR/BHYG/requirements.txt" --quiet 2>/dev/null || \
-        pip install -r "$TOOLS_DIR/BHYG/requirements.txt" --quiet 2>/dev/null || \
-        warn "Failed to install BHYG deps."
+        if ! pip3 install -r "$TOOLS_DIR/BHYG/requirements.txt" --quiet; then
+            if ! pip install -r "$TOOLS_DIR/BHYG/requirements.txt" --quiet; then
+                warn "Failed to install BHYG deps."
+            fi
+        fi
         ok "BHYG dependencies installed."
     else
         if [[ -d "$TOOLS_DIR/BHYG" ]]; then
             info "Installing BHYG via pip..."
-            pip3 install "$TOOLS_DIR/BHYG/" --quiet 2>/dev/null || \
-            pip install "$TOOLS_DIR/BHYG/" --quiet 2>/dev/null || \
-            warn "Failed to install BHYG."
+            if ! pip3 install "$TOOLS_DIR/BHYG/" --quiet; then
+                if ! pip install "$TOOLS_DIR/BHYG/" --quiet; then
+                    warn "Failed to install BHYG."
+                fi
+            fi
         fi
     fi
 
     # Common deps for NyaTickerTools scripts
     info "Installing common dependencies (pyyaml)..."
-    pip3 install pyyaml --quiet 2>/dev/null || \
-    pip install pyyaml --quiet 2>/dev/null || \
-    warn "Failed to install pyyaml."
+    if ! pip3 install pyyaml --quiet; then
+        if ! pip install pyyaml --quiet; then
+            warn "Failed to install pyyaml."
+        fi
+    fi
     ok "Common dependencies installed."
 else
     warn "Python3/pip not found. Skipping Python dependency installation."
@@ -246,7 +294,7 @@ if [[ -d "$BTG_DIR" ]]; then
         info "Downloading ${BOLD}${BINARY_NAME}${NC}..."
 
         # Get latest release URL from GitHub
-        DOWNLOAD_URL=$(curl -sL "https://api.github.com/repos/biliup/bili-ticket-go/releases/latest" \
+        DOWNLOAD_URL=$(curl -sL "https://api.github.com/repos/konaxia548/bili-ticket-go/releases/latest" \
             | python3 -c "
 import json, sys
 data = json.load(sys.stdin)
@@ -264,7 +312,7 @@ for asset in data.get('assets', []):
             ok "Downloaded: $BINARY_NAME"
         else
             warn "Could not find binary for platform '${PLATFORM}'."
-            warn "Download manually from: https://github.com/biliup/bili-ticket-go/releases"
+            warn "Download manually from: https://github.com/konaxia548/bili-ticket-go/releases"
         fi
     fi
 else
