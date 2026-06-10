@@ -5,9 +5,7 @@
 # Sets up a new machine for NyaTickerTools:
 #   - Creates tools/ directory
 #   - Clones all 4 tool repos
-#   - Installs Python deps for biliTickerBuy and BHYG
-#   - Downloads bili-ticket-go binary for current platform
-#   - Optionally builds bili_ticket_rush (if Rust is installed)
+#   - Installs biliTickerBuy and its Python dependencies
 #
 # Usage:
 #   ./scripts/setup.sh           # Full setup
@@ -46,9 +44,6 @@ TOOLS_DIR="$PROJECT_ROOT/tools"
 
 # Tool repos
 BTB_REPO="https://github.com/mikumifa/biliTickerBuy.git"
-BHYG_REPO="https://github.com/ZianTT/BHYG.git"
-RUSH_REPO="https://github.com/Violiate/bili_ticket_rush.git"
-BTG_REPO="https://github.com/konaxia548/bili-ticket-go.git"
 
 # ── Parse arguments ───────────────────────────────────────────
 
@@ -89,7 +84,7 @@ if [[ "$STATUS_MODE" == true ]]; then
     echo "  ╚══════════════════════════════════════════╝"
     echo -e "${NC}\n"
 
-    for tool in biliTickerBuy BHYG bili_ticket_rush bili-ticket-go; do
+    for tool in biliTickerBuy; do
         dir="$TOOLS_DIR/$tool"
         if [[ -d "$dir/.git" ]]; then
             local_hash=$(git -C "$dir" log -1 --format=%h 2>/dev/null || echo "unknown")
@@ -185,7 +180,9 @@ if [[ "$QUICK_MODE" == false ]]; then
     section "Cloning tool repositories"
 
     clone_or_update() {
-        local name="$1" repo="$2" dir="$TOOLS_DIR/$name"
+        local name="$1"
+        local repo="$2"
+        local dir="$TOOLS_DIR/$name"
         if [[ -d "$dir/.git" ]]; then
             info "Updating ${BOLD}${name}${NC}..."
             if ! (cd "$dir" && git pull --rebase); then
@@ -205,9 +202,6 @@ if [[ "$QUICK_MODE" == false ]]; then
 
     if [[ "$HAS_GIT" == true ]]; then
         clone_or_update "biliTickerBuy" "$BTB_REPO"
-        clone_or_update "BHYG" "$BHYG_REPO"
-        clone_or_update "bili_ticket_rush" "$RUSH_REPO"
-        clone_or_update "bili-ticket-go" "$BTG_REPO"
     else
         err "git is required for cloning tool repos. Please install git."
         exit 1
@@ -242,25 +236,7 @@ if [[ "$HAS_PYTHON" == true && "$HAS_PIP" == true ]]; then
         fi
     fi
 
-    # BHYG deps
-    if [[ -f "$TOOLS_DIR/BHYG/requirements.txt" ]]; then
-        info "Installing BHYG dependencies..."
-        if ! pip3 install -r "$TOOLS_DIR/BHYG/requirements.txt" --quiet; then
-            if ! pip install -r "$TOOLS_DIR/BHYG/requirements.txt" --quiet; then
-                warn "Failed to install BHYG deps."
-            fi
-        fi
-        ok "BHYG dependencies installed."
-    else
-        if [[ -d "$TOOLS_DIR/BHYG" ]]; then
-            info "Installing BHYG via pip..."
-            if ! pip3 install "$TOOLS_DIR/BHYG/" --quiet; then
-                if ! pip install "$TOOLS_DIR/BHYG/" --quiet; then
-                    warn "Failed to install BHYG."
-                fi
-            fi
-        fi
-    fi
+    ok "biliTickerBuy ready."
 
     # Common deps for NyaTickerTools scripts
     info "Installing common dependencies (pyyaml)..."
@@ -272,70 +248,6 @@ if [[ "$HAS_PYTHON" == true && "$HAS_PIP" == true ]]; then
     ok "Common dependencies installed."
 else
     warn "Python3/pip not found. Skipping Python dependency installation."
-fi
-
-# ── Download bili-ticket-go binary ────────────────────────────
-
-section "Downloading bili-ticket-go binary"
-
-BTG_DIR="$TOOLS_DIR/bili-ticket-go"
-if [[ -d "$BTG_DIR" ]]; then
-    # Determine binary name based on platform
-    BINARY_NAME="btg-${PLATFORM}-static"
-    if [[ "$PLATFORM" == darwin-* ]]; then
-        BINARY_NAME="btg-${PLATFORM}"
-    fi
-
-    BINARY_PATH="$BTG_DIR/$BINARY_NAME"
-
-    if [[ -f "$BINARY_PATH" ]]; then
-        ok "Binary already exists: $BINARY_NAME"
-    else
-        info "Downloading ${BOLD}${BINARY_NAME}${NC}..."
-
-        # Get latest release URL from GitHub
-        DOWNLOAD_URL=$(curl -sL "https://api.github.com/repos/konaxia548/bili-ticket-go/releases/latest" \
-            | python3 -c "
-import json, sys
-data = json.load(sys.stdin)
-for asset in data.get('assets', []):
-    name = asset['name']
-    if '$PLATFORM' in name:
-        print(asset['browser_download_url'])
-        break
-" 2>/dev/null) || true
-
-        if [[ -n "$DOWNLOAD_URL" ]]; then
-            info "  URL: $DOWNLOAD_URL"
-            curl -sL "$DOWNLOAD_URL" -o "$BINARY_PATH"
-            chmod +x "$BINARY_PATH"
-            ok "Downloaded: $BINARY_NAME"
-        else
-            warn "Could not find binary for platform '${PLATFORM}'."
-            warn "Download manually from: https://github.com/konaxia548/bili-ticket-go/releases"
-        fi
-    fi
-else
-    warn "bili-ticket-go directory not found. Was it cloned?"
-fi
-
-# ── Build bili_ticket_rush (optional) ─────────────────────────
-
-section "Building bili_ticket_rush (optional)"
-
-RUSH_DIR="$TOOLS_DIR/bili_ticket_rush"
-if [[ -d "$RUSH_DIR" ]]; then
-    if [[ "$HAS_CARGO" == true ]]; then
-        info "Building bili_ticket_rush with Cargo..."
-        (cd "$RUSH_DIR" && cargo build --release 2>&1) && \
-            ok "bili_ticket_rush built successfully." || \
-            warn "Build failed. You may need to install Rust dependencies."
-    else
-        warn "Rust/Cargo not found. Skipping bili_ticket_rush build."
-        warn "Install Rust: curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh"
-    fi
-else
-    warn "bili_ticket_rush directory not found."
 fi
 
 # ── Create config templates ───────────────────────────────────

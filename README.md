@@ -73,41 +73,51 @@ NyaTicketTools 是一个**主控端 / 被控端 集群抢票系统**。以 [bili
 
 ## 快速开始
 
+### 前置要求
+
+- Python 3.8+ 和 pip
+- Git
+
 ### 1. 克隆并安装
 
 ```bash
 git clone https://github.com/PaFuNya/NyaTicketTools.git
 cd NyaTicketTools
 chmod +x nyaticket scripts/*
+
+# 安装 Python 依赖 (无 pip 则先装: apt install python3-pip)
+pip install pyyaml bilitickerbuy
+
 ./nyaticket setup
 ```
 
-### 2. 配置
+### 2. 启动 Dashboard
 
 ```bash
-# 编辑配置文件
-cp config/sample_accounts.yaml config/accounts.yaml
-cp config/sample_tickets.yaml config/tickets.yaml
-
-# 填你的 B站 Cookie 和票务信息
-nano config/accounts.yaml
-nano config/tickets.yaml
-```
-
-### 3. 启动
-
-```bash
-./nyaticket config          # YAML → biliTickerBuy JSON
-./nyaticket start           # 启动 Dashboard
+./nyaticket start
 ```
 
 浏览器打开 **http://localhost:8090**
 
-### 4. 使用 Web 面板
+### 3. 在 Dashboard 中完成配置（不需要编辑文件）
 
-1. **账号管理** → 粘贴 Cookie → 点「解析」→ 点「验证」确认有效
-2. **抢票配置** → 4 步向导填写活动信息 → 保存（自动同步到 YAML）
-3. **总览** → 看到就绪检查全部 ✅ → 点「开始抢票」或等定时自动启动
+**添加账号：**
+1. 浏览器登录 [bilibili.com](https://bilibili.com) → F12 → Application → Cookies
+2. 复制完整 Cookie 字符串
+3. Dashboard → 账号管理 → 粘贴 Cookie → 点「解析」
+4. 点「验证」确认 Cookie 有效
+5. （或者点「扫码登录」→ B站 App 扫码）
+
+**配置抢票目标：**
+1. Dashboard → 抢票配置
+2. 4 步向导填写：Project ID / Screen ID / SKU ID / 票价 / 开售时间
+3. 点「保存配置」（自动同步到 YAML）
+
+**开始抢票：**
+1. Dashboard → 总览 → 点「开始抢票」
+2. 系统会在开售前自动启动，开售后自动停止
+
+> **提示：** 不需要手动编辑 `accounts.yaml` 或 `tickets.yaml`。Dashboard 中的修改会自动同步到 YAML 文件。
 
 ---
 
