@@ -102,6 +102,13 @@ mkdir -p "$LOGS_DIR"
 # Rotate old logs (keep 7 days)
 find "$LOGS_DIR" -name "*.log" -mtime +7 -delete 2>/dev/null || true
 
+# Auto-inject config if generated configs are missing or stale
+if [[ ! -d "$CONFIG_DIR/generated" ]] || [[ "$CONFIG_DIR/accounts.yaml" -nt "$CONFIG_DIR/generated" 2>/dev/null ]]; then
+    info "Auto-generating tool configs from YAML..."
+    python3 "$PROJECT_ROOT/scripts/inject_config.py" || warn "Config generation had issues"
+    echo
+fi
+
 # Initialize PID file
 if [[ -f "$PIDS_FILE" ]]; then
     warn "Existing .pids file found. Cleaning up stale entries..."

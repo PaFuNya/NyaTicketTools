@@ -215,40 +215,127 @@ def generate_btb_config(accounts, tickets, dry_run=False):
                 json.dump(default_config, f, ensure_ascii=False, indent=4)
             ok(f"Generated default config: {BTB_CONFIG_FILE}")
 
-# ── BHYG instructions ────────────────────────────────────────────────────────
+# ── BHYG config generator ───────────────────────────────────────────────────
 
-def print_bhyg_instructions(tickets):
-    """Print setup instructions for BHYG (encrypted config, interactive TUI)."""
-    section("BHYG - Manual Configuration Required")
+def generate_bhyg_config(accounts, tickets, dry_run=False):
+    """Generate BHYG encrypted AES config file from unified YAML config."""
+    section("BHYG - Generate Encrypted Config")
 
     bhyg_tickets = [t for t in tickets if t.get("enabled", False) and "BHYG" in t.get("tools", [])]
     if not bhyg_tickets:
-        warn("No enabled tickets use BHYG. Skipping.")
+        warn("No enabled tickets use BHYG. Skipping config generation.")
         return
 
-    print("""
-\033[33m  BHYG uses an encrypted AES config file and interactive TUI.\n  Config cannot be auto-generated. Follow these steps:\033[0m
+    bhyg_dir = PROJECT_ROOT / "tools" / "BHYG"
+    if not bhyg_dir.exists():
+        warn("BHYG directory not found. Run setup first.")
+        return
 
-  1. Navigate to the BHYG directory:
-     \033[36mcd tools/BHYG\033[0m
+    # Try to import BHYG's encryption modules
+    try:
+        sys.path.insert(0, str(bhyg_dir))
+        from security import get_machine_id
+        from Crypto.Cipher import AES
+        from Crypto.Util.Padding import pad
+        import hashlib
+        import json as _json
+        has_crypto = True
+    except ImportError:
+        has_crypto = False
+        warn("BHYG crypto modules not available. Generating plaintext config only.")
 
-  2. Run the interactive config wizard:
-     \033[36mpython3 main.py\033[0m
+    account_map = {a["name"]: a for a in accounts}
+    config_dir = bhyg_dir / "bhyg_config"
 
-  3. Follow the on-screen prompts to:
-     - Enter your Bilibili cookie
-     - Select the target event/ticket
-     - Configure buyer information
-     - Set up encrypted config password
+    for ticket in bhyg_tickets:
+        acc_name = ticket.get("account", "")
+        acc = account_map.get(acc_name, accounts[0] if accounts else {})
+        cookie_str = acc.get("cookie", "")
 
-  4. Config will be saved to:
-     \033[36mtools/BHYG/bhyg_config/config.sba\033[0m
-""")
+        # Parse cookie to extract individual values
+        cookies = {}
+        if cookie_str:
+            for part in cookie_str.split(";"):
+                part = part.strip()
+                if "=" in part:
+                    k, v = part.split("=", 1)
+                    cookies[k.strip()] = v.strip()
 
-    info("Tickets targeting BHYG:")
-    for t in bhyg_tickets:
-        print(f"    • {t['name']} (project: {t.get('project_id', '?')}, "
-              f"sku: {t.get('sku_id', '?')})")
+        config = {
+            "cookie": cookie_str,
+            "project_id": int(ticket.get("project_id", 0)),
+            "screen_id": int(ticket.get("screen_id", 0)),
+            "sku_id": int(ticket.get("sku_id", 0)),
+            "count": int(ticket.get("quantity", 1)),
+            "pay_money": int(ticket.get("pay_money", 0)),
+            "sale_start_time": 0,
+            "hotProject": ticket.get("is_hot_project", False),
+            "id_bind": False,
+            "is_changfan": False,
+            "order_type": 1,
+            "buyer": "",
+            "tel": "",
+            "id_buyer": [],
+            "version": "3.0",
+        }
+
+        # Parse sale_start time
+        sale_start = ticket.get("sale_start", "")
+        if sale_start:
+            try:
+                from datetime import datetime
+                dt = datetime.fromisoformat(sale_start)
+                import calendar
+                config["sale_start_time"] = int(calendar.timegm(dt.timetuple()))
+            except Exception:
+                pass
+
+        # Parse buyer info
+        buyer_info = ticket.get("buyer_info", [])
+        if buyer_info:
+            config["buyer"] = buyer_info[0].get("name", "")
+            config["tel"] = buyer_info[0].get("tel", "")
+
+        safe_name = ticket['name'].replace(' ', '_').replace('/', '_')
+
+        if dry_run:
+            info(f"[DRY RUN] Would generate BHYG config for: {ticket['name']}")
+            info(f"  Account: {acc_name}, project_id={config['project_id']}")
+            continue
+
+        config_dir.mkdir(parents=True, exist_ok=True)
+
+        if has_crypto:
+            # Generate encrypted .sba config
+            try:
+                machine_id = get_machine_id()
+                key = hashlib.md5(machine_id.encode()).hexdigest().encode()[:16]
+                cipher = AES.new(key, AES.MODE_CBC, key)
+                plaintext = _json.dumps(config)
+                encrypted = cipher.encrypt(pad(plaintext.encode(), AES.block_size))
+                import base64
+                encrypted_b64 = base64.b64encode(encrypted).decode()
+
+                config_file = config_dir / "config.sba"
+                with open(config_file, "w", encoding="utf-8") as f:
+                    f.write(encrypted_b64)
+                ok(f"Generated BHYG encrypted config: {config_file}")
+                info(f"  Ticket: {ticket['name']} (account: {acc_name})")
+            except Exception as e:
+                warn(f"Failed to generate encrypted config: {e}")
+                # Fallback to JSON
+                config_file = config_dir / f"config_{safe_name}.json"
+                with open(config_file, "w", encoding="utf-8") as f:
+                    _json.dump(config, f, ensure_ascii=False, indent=2)
+                info(f"Generated plaintext JSON: {config_file}")
+        else:
+            # Generate plaintext JSON as reference
+            config_file = config_dir / f"config_{safe_name}.json"
+            with open(config_file, "w", encoding="utf-8") as f:
+                _json.dump(config, f, ensure_ascii=False, indent=2)
+            ok(f"Generated BHYG config reference: {config_file}")
+            info(f"  Ticket: {ticket['name']} (account: {acc_name})")
+            warn("  This is a plaintext reference. Run BHYG once interactively to encrypt.")
 
 # ── bili_ticket_rush instructions ────────────────────────────────────────────
 
@@ -422,7 +509,7 @@ def main():
     if args.tool is None or args.tool == "biliTickerBuy":
         generate_btb_config(accounts, tickets, dry_run=args.dry_run)
     if args.tool is None or args.tool == "BHYG":
-        print_bhyg_instructions(tickets)
+        generate_bhyg_config(accounts, tickets, dry_run=args.dry_run)
         generate_bhyg_env(accounts, tickets, dry_run=args.dry_run)
     if args.tool is None or args.tool == "bili_ticket_rush":
         print_rush_instructions(tickets)
