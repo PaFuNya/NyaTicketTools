@@ -1,0 +1,43 @@
+# =============================================================
+# NyaTickerTools - Account Configuration Template
+# =============================================================
+# Copy this file to config/accounts.yaml and fill in your credentials.
+# NEVER commit accounts.yaml to git (it's in .gitignore).
+# =============================================================
+
+# Global settings
+global:
+  # Cookie string from browser (F12 > Network > copy cookie header)
+  # Contains SESSDATA, bili_jct, DedeUserID etc.
+  cookie: "SESSDATA=xxx; bili_jct=xxx; DedeUserID=xxx"
+
+# Account list - each entry represents one Bilibili account
+# Multiple accounts can be used for cluster/multi-device purchasing
+accounts:
+  - name: "main"                    # Friendly name for this account
+    uid: "12345678"                 # Bilibili user ID (DedeUserID)
+    cookie: "SESSDATA=xxx; bili_jct=xxx; DedeUserID=xxx"
+    # Optional: proxy settings for this account
+    # proxy: "http://127.0.0.1:7890"
+    # Optional: which tool to use (default: auto-select)
+    # tool: "biliTickerBuy"
+    enabled: true
+
+  # - name: "alt"
+  #   uid: "87654321"
+  #   cookie: "SESSDATA=yyy; bili_jct=yyy; DedeUserID=yyy"
+  #   enabled: true
+
+# Tool-specific account settings (optional overrides)
+tool_overrides:
+  biliTickerBuy:
+    # Extra headers or parameters specific to biliTickerBuy
+    extra_headers: {}
+  BHYG:
+    # BHYG uses its own encrypted config in bhyg_config/
+    # This section is for any additional settings
+    pass
+  bili_ticket_rush:
+    pass
+  bili-ticket-go:
+    pass

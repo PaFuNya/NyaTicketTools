@@ -1,0 +1,72 @@
+# ==============================
+# NyaTickerTools .gitignore
+# ==============================
+
+# --- Third-party cloned repos (dependencies) ---
+tools/
+
+# --- AI / IDE agent configs ---
+.claude/
+.claudecode/
+.cursorrules
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+*.egg
+dist/
+build/
+.eggs/
+*.whl
+
+# --- Node.js ---
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+# --- Compiled binaries ---
+*.exe
+*.dll
+*.so
+*.dylib
+
+# --- Sensitive data ---
+.env
+.env.*
+config/accounts.yaml
+config/accounts.yml
+bhyg_config/
+
+# --- Logs ---
+*.log
+logs/
+
+# --- IDE / Editor ---
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# --- OS ---
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# --- Testing / Coverage ---
+.coverage
+htmlcov/
+.pytest_cache/
+.tox/
+.nox/
+
+# --- Virtual environments ---
+venv/
+.venv/
+env/

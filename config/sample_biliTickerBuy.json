@@ -1,0 +1,41 @@
+{
+    "cookies": [
+        {
+            "name": "SESSDATA",
+            "value": "YOUR_SESSDATA",
+            "domain": ".bilibili.com"
+        },
+        {
+            "name": "bili_jct",
+            "value": "YOUR_BILI_JCT",
+            "domain": ".bilibili.com"
+        },
+        {
+            "name": "DedeUserID",
+            "value": "YOUR_DEDEUSERID",
+            "domain": ".bilibili.com"
+        }
+    ],
+    "detail": "示例演出 - 普通票",
+    "screen_id": 0,
+    "project_id": 0,
+    "sku_id": 0,
+    "pay_money": 0,
+    "count": 1,
+    "is_hot_project": false,
+    "buyer_info": [
+        {
+            "name": "YOUR_NAME",
+            "id_card": "YOUR_ID_CARD",
+            "tel": "YOUR_PHONE"
+        }
+    ],
+    "deliver_info": {
+        "name": "YOUR_NAME",
+        "tel": "YOUR_PHONE",
+        "addr_id": "YOUR_ADDR_ID",
+        "addr": "YOUR_ADDRESS"
+    },
+    "buyer": "YOUR_NAME",
+    "tel": "YOUR_PHONE"
+}
