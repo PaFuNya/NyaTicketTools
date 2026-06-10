@@ -75,8 +75,15 @@ NyaTicketTools 是一个**主控端 / 被控端 集群抢票系统**。以 [bili
 
 ### 前置要求
 
-- Python 3.8+ 和 pip
+- Python 3.8+
 - Git
+- uv（推荐，超快）或 pip
+
+```bash
+# 安装 uv (推荐，比 pip 快 10-100 倍)
+curl -LsSf https://astral.sh/uv/install.sh | sh
+# 或者用传统 pip:  apt install python3-pip
+```
 
 ### 1. 克隆并安装
 
@@ -85,9 +92,7 @@ git clone https://github.com/PaFuNya/NyaTicketTools.git
 cd NyaTicketTools
 chmod +x nyaticket scripts/*
 
-# 安装 Python 依赖 (无 pip 则先装: apt install python3-pip)
-pip install pyyaml bilitickerbuy
-
+# setup.sh 会自动检测 uv > pip3 > pip，优先用最快的
 ./nyaticket setup
 ```
 

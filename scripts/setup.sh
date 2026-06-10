@@ -157,15 +157,38 @@ section "Checking prerequisites"
 
 HAS_GIT=false
 HAS_PYTHON=false
-HAS_PIP=false
-HAS_CARGO=false
-HAS_GO=false
+HAS_PKG=false  # uv or pip
+PKG_CMD=""      # "uv pip" or "pip3" or "pip"
 
 if check_optional git; then HAS_GIT=true; fi
 if check_optional python3; then HAS_PYTHON=true; fi
-if check_optional pip3 || check_optional pip; then HAS_PIP=true; fi
-if check_optional cargo; then HAS_CARGO=true; fi
-if check_optional go; then HAS_GO=true; fi
+
+# Prefer uv (fast), fallback to pip
+if command -v uv &>/dev/null; then
+    ok "uv found: $(command -v uv)"
+    HAS_PKG=true
+    PKG_CMD="uv pip"
+elif check_optional pip3; then
+    HAS_PKG=true
+    PKG_CMD="pip3"
+elif check_optional pip; then
+    HAS_PKG=true
+    PKG_CMD="pip"
+else
+    warn "No package manager found (uv/pip)."
+    echo ""
+    info "Install uv (recommended - fastest):"
+    echo "  curl -LsSf https://astral.sh/uv/install.sh | sh"
+    echo ""
+    info "Or install pip:"
+    echo "  apt install python3-pip"
+    echo ""
+fi
+
+# Unified install helper
+_pip() {
+    $PKG_CMD "$@"
+}
 
 # ── Create tools directory ────────────────────────────────────
 
@@ -214,40 +237,31 @@ fi
 
 section "Installing Python dependencies"
 
-if [[ "$HAS_PYTHON" == true && "$HAS_PIP" == true ]]; then
+if [[ "$HAS_PYTHON" == true && "$HAS_PKG" == true ]]; then
     # biliTickerBuy deps
     if [[ -f "$TOOLS_DIR/biliTickerBuy/requirements.txt" ]]; then
         info "Installing biliTickerBuy dependencies..."
-        if ! pip3 install -r "$TOOLS_DIR/biliTickerBuy/requirements.txt" --quiet; then
-            if ! pip install -r "$TOOLS_DIR/biliTickerBuy/requirements.txt" --quiet; then
-                warn "Failed to install biliTickerBuy deps."
-            fi
-        fi
+        _pip install -r "$TOOLS_DIR/biliTickerBuy/requirements.txt" --quiet || \
+            warn "Failed to install biliTickerBuy deps."
         ok "biliTickerBuy dependencies installed."
     else
-        # Try pip install from setup.py/pyproject.toml
         if [[ -d "$TOOLS_DIR/biliTickerBuy" ]]; then
             info "Installing biliTickerBuy via pip..."
-            if ! pip3 install "$TOOLS_DIR/biliTickerBuy/" --quiet; then
-                if ! pip install "$TOOLS_DIR/biliTickerBuy/" --quiet; then
-                    warn "Failed to install biliTickerBuy."
-                fi
-            fi
+            _pip install "$TOOLS_DIR/biliTickerBuy/" --quiet || \
+                warn "Failed to install biliTickerBuy."
         fi
     fi
 
     ok "biliTickerBuy ready."
 
-    # Common deps for NyaTickerTools scripts
-    info "Installing common dependencies (pyyaml)..."
-    if ! pip3 install pyyaml --quiet; then
-        if ! pip install pyyaml --quiet; then
-            warn "Failed to install pyyaml."
-        fi
-    fi
+    # PyYAML
+    info "Installing pyyaml..."
+    _pip install pyyaml --quiet || warn "Failed to install pyyaml."
     ok "Common dependencies installed."
 else
-    warn "Python3/pip not found. Skipping Python dependency installation."
+    warn "Python/pip not found. Skipping Python dependency installation."
+    info "Install uv (recommended): curl -LsSf https://astral.sh/uv/install.sh | sh"
+    info "Or install pip: apt install python3-pip"
 fi
 
 # ── Create config templates ───────────────────────────────────

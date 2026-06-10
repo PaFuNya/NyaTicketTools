@@ -44,16 +44,20 @@ case "${1:-}" in
     exec bash "$SCRIPT_DIR/scripts/clean.sh" "$@"
     ;;
   -h|--help|help)
-    echo "NyaTicketTools - Usage:"
-    echo "  nyaticket setup                   Install biliTickerBuy"
-    echo "  nyaticket config [--dry-run]       Generate tool configs"
-    echo "  nyaticket start [--dry-run]        Start Dashboard + engine"
+    echo "NyaTicketTools v0.2.x — Usage:"
+    echo ""
+    echo "  nyaticket setup                   Clone + install biliTickerBuy"
+    echo "  nyaticket config [--dry-run]       Generate biliTickerBuy config"
+    echo "  nyaticket start                    Start Dashboard + auto-config"
     echo "  nyaticket stop                     Stop all processes"
-    echo "  nyaticket deploy <machine|all>     Deploy to remote machines"
-    echo "  nyaticket dashboard                Start web Dashboard only"
+    echo "  nyaticket deploy all               Deploy to all remote nodes"
+    echo "  nyaticket dashboard                Dashboard only (port 8090)"
     echo "  nyaticket status                   Health check"
     echo "  nyaticket logs                     View logs"
     echo "  nyaticket clean                    Clean up"
+    echo ""
+    echo "  Tip: Install uv for fast Python packages:"
+    echo "    curl -LsSf https://astral.sh/uv/install.sh | sh"
     ;;
   *)
     echo "Unknown command: ${1:-}"
