@@ -1,64 +1,52 @@
 /* ============================================================
-   NyaTicketTools – Dashboard Application
+   NyaTicketTools – Dashboard Application (v2)
    ============================================================ */
 
 (() => {
   'use strict';
 
-  // ---- Tool definitions with capability info ----
+  // ---- Tool definitions ----
   const TOOLS = [
     {
-      id: 'biliTickerBuy',
-      name: 'biliTickerBuy',
-      desc: 'CLI mode, fully automated',
-      color: '#7C3AED',
-      abbrev: 'BTB',
-      lang: 'Python',
+      id: 'biliTickerBuy', name: 'biliTickerBuy',
+      desc_zh: 'CLI 模式，全自动，最推荐',
+      desc_en: 'CLI mode, fully automated, recommended',
+      color: '#7C3AED', abbrev: 'BTB', lang: 'Python',
       repo: 'https://github.com/mikumifa/biliTickerBuy',
-      automatable: true,
-      platform: 'all',
-      capability: 'auto',
+      automatable: true, platform: 'all', capability: 'auto',
     },
     {
-      id: 'BHYG',
-      name: 'BHYG',
-      desc: 'Terminal tool, config auto-generated',
-      color: '#3B82F6',
-      abbrev: 'BHYG',
-      lang: 'Python',
+      id: 'BHYG', name: 'BHYG',
+      desc_zh: '终端工具，配置可自动生成',
+      desc_en: 'Terminal tool, config auto-generated',
+      color: '#3B82F6', abbrev: 'BHYG', lang: 'Python',
       repo: 'https://github.com/ZianTT/BHYG',
-      automatable: true,
-      platform: 'all',
-      capability: 'auto',
+      automatable: true, platform: 'all', capability: 'auto',
     },
     {
-      id: 'bili_ticket_rush',
-      name: 'bili_ticket_rush',
-      desc: 'Rust GUI, requires desktop',
-      color: '#10B981',
-      abbrev: 'BTR',
-      lang: 'Rust',
+      id: 'bili_ticket_rush', name: 'bili_ticket_rush',
+      desc_zh: 'Rust GUI，需要桌面环境',
+      desc_en: 'Rust GUI, requires desktop',
+      color: '#10B981', abbrev: 'BTR', lang: 'Rust',
       repo: 'https://github.com/Violiate/bili_ticket_rush',
-      automatable: false,
-      platform: 'desktop',
-      capability: 'gui',
+      automatable: false, platform: 'desktop', capability: 'gui',
     },
     {
-      id: 'bili-ticket-go',
-      name: 'bili-ticket-go',
-      desc: 'Binary, Linux/WSL only',
-      color: '#F59E0B',
-      abbrev: 'BTG',
-      lang: 'Go',
+      id: 'bili-ticket-go', name: 'bili-ticket-go',
+      desc_zh: 'Go 二进制，仅 Linux/WSL',
+      desc_en: 'Go binary, Linux/WSL only',
+      color: '#F59E0B', abbrev: 'BTG', lang: 'Go',
       repo: 'https://github.com/konaxia548/bili-ticket-go',
-      automatable: false,
-      platform: 'linux',
-      capability: 'linux',
+      automatable: false, platform: 'linux', capability: 'linux',
     },
   ];
 
-  // ---- API Communication ----
-  const API_BASE = 'http://localhost:8090';
+  function toolDesc(tool) {
+    return getLang() === 'zh-CN' ? tool.desc_zh : tool.desc_en;
+  }
+
+  // ---- API ----
+  const API_BASE = location.origin;
 
   async function apiCall(path, options = {}) {
     try {
@@ -74,12 +62,11 @@
     }
   }
 
-  // ---- Storage helpers ----
+  // ---- Storage ----
   const STORAGE_KEYS = {
     accounts: 'nya_accounts',
     tickets: 'nya_tickets',
     toolStates: 'nya_tool_states',
-    settings: 'nya_settings',
   };
 
   function load(key) {
@@ -100,6 +87,7 @@
   let toolStates = loadObj(STORAGE_KEYS.toolStates);
   let editingAccountId = null;
   let scheduledTimers = [];
+  let currentTicketStep = 1;
 
   // ---- DOM refs ----
   const $ = (sel, ctx) => (ctx || document).querySelector(sel);
@@ -121,7 +109,7 @@
       p.classList.toggle('active', isTarget);
       if (isTarget) animatePageIn(p);
     });
-    const titles = { dashboard: 'Dashboard', accounts: 'Accounts', tickets: 'Tickets', tools: 'Tools', deploy: 'Deploy' };
+    const titles = { dashboard: t('nav_dashboard'), accounts: t('nav_accounts'), tickets: t('nav_tickets'), tools: t('nav_tools'), deploy: t('nav_deploy') };
     pageTitle.textContent = titles[page] || page;
     closeSidebar();
   }
@@ -144,9 +132,34 @@
   sidebarToggle.addEventListener('click', closeSidebar);
   sidebarOverlay.addEventListener('click', closeSidebar);
 
+  // ---- Language switch ----
+  const langBtn = $('#langSwitchBtn');
+  if (langBtn) {
+    langBtn.addEventListener('click', () => {
+      const newLang = getLang() === 'zh-CN' ? 'en' : 'zh-CN';
+      setLang(newLang);
+      langBtn.textContent = newLang === 'zh-CN' ? 'EN' : '中文';
+    });
+    langBtn.textContent = getLang() === 'zh-CN' ? 'EN' : '中文';
+  }
+
+  // ---- i18n DOM update ----
+  function updateI18nDOM() {
+    $$('[data-i18n]').forEach(el => {
+      el.textContent = t(el.dataset.i18n);
+    });
+    // Update nav active title
+    const activeNav = $('.nav-item.active');
+    if (activeNav) {
+      const page = activeNav.dataset.page;
+      const titles = { dashboard: t('nav_dashboard'), accounts: t('nav_accounts'), tickets: t('nav_tickets'), tools: t('nav_tools'), deploy: t('nav_deploy') };
+      pageTitle.textContent = titles[page] || page;
+    }
+  }
+
   // ---- GSAP Animations ----
   function animatePageIn(page) {
-    const cards = $$('.glass, .tool-card, .tool-detail-card, .account-card, .stat-card, .deploy-action-btn', page);
+    const cards = $$('.glass, .tool-card, .tool-detail-card, .account-card, .readiness-card, .deploy-action-btn, .status-bar', page);
     if (!cards.length) return;
     gsap.fromTo(cards,
       { opacity: 0, y: 30 },
@@ -154,24 +167,14 @@
     );
   }
 
-  function animateStatValues() {
-    $$('.stat-value').forEach(el => {
-      const target = parseInt(el.textContent) || 0;
-      gsap.from(el, {
-        textContent: 0, duration: 1, ease: 'power2.out', snap: { textContent: 1 },
-        onUpdate() { el.textContent = Math.round(gsap.getProperty(el, 'textContent')); },
-      });
-    });
-  }
-
   function initCardHover() {
     document.addEventListener('mouseenter', e => {
-      const card = e.target.closest('.stat-card, .tool-card, .tool-detail-card, .account-card, .node-card');
+      const card = e.target.closest('.readiness-card, .tool-card, .tool-detail-card, .account-card, .node-card');
       if (!card) return;
       gsap.to(card, { y: -4, boxShadow: '0 12px 40px rgba(0,0,0,0.5), 0 2px 8px rgba(0,0,0,0.3)', duration: 0.25, ease: 'power2.out' });
     }, true);
     document.addEventListener('mouseleave', e => {
-      const card = e.target.closest('.stat-card, .tool-card, .tool-detail-card, .account-card, .node-card');
+      const card = e.target.closest('.readiness-card, .tool-card, .tool-detail-card, .account-card, .node-card');
       if (!card) return;
       gsap.to(card, { y: 0, boxShadow: '0 4px 24px rgba(0,0,0,0.35), 0 1px 3px rgba(0,0,0,0.2)', duration: 0.3, ease: 'power2.out' });
     }, true);
@@ -200,7 +203,7 @@
     }, 3000);
   }
 
-  // ---- #2 Cookie auto-parse ----
+  // ---- Cookie auto-parse ----
   function parseCookieString(cookieStr) {
     const result = { sessdata: '', biliJct: '', dedeUserId: '', uid: '' };
     if (!cookieStr) return result;
@@ -219,16 +222,16 @@
     return result;
   }
 
-  // ---- #3 Cookie verification ----
+  // ---- Cookie verification ----
   async function verifyCookie() {
     const sessdata = $('#accSessdata').value.trim();
     if (!sessdata) {
-      showToast('Please fill in SESSDATA first (or paste full cookie and click Parse)', 'error');
+      showToast(t('account_verify_no_sessdata'), 'error');
       return;
     }
     const btn = $('#verifyCookieBtn');
     btn.disabled = true;
-    btn.textContent = 'Verifying...';
+    btn.textContent = t('account_verifying');
     try {
       const res = await fetch('https://api.bilibili.com/x/web-interface/nav', {
         headers: { 'Cookie': `SESSDATA=${sessdata}` },
@@ -238,74 +241,162 @@
       if (data.code === 0 && data.data?.isLogin) {
         const uname = data.data.uname || 'Unknown';
         const mid = data.data.mid || '';
-        showToast(`Cookie valid! Logged in as: ${uname} (UID: ${mid})`, 'success');
+        showToast(t('account_verify_ok', { name: `${uname} (UID: ${mid})` }), 'success');
         if (!$('#accUid').value) $('#accUid').value = String(mid);
-        if (!$('#accName').value || $('#accName').value === 'My Bilibili') $('#accName').value = uname;
+        if (!$('#accName').value || $('#accName').value === 'My Bilibili' || $('#accName').value === '主号') $('#accName').value = uname;
       } else {
-        showToast(`Cookie invalid or expired (code: ${data.code})`, 'error');
+        showToast(t('account_verify_fail', { code: data.code }), 'error');
       }
     } catch (e) {
-      showToast('Verification failed (CORS/network). Try from the backend.', 'warning');
+      showToast(t('account_verify_err'), 'warning');
     }
     btn.disabled = false;
-    btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg> Verify';
+    btn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg> ${t('account_verify')}`;
   }
 
-  // ---- Render: Dashboard ----
+  // ---- Dashboard: Readiness checks ----
   function renderDashboard() {
-    $('#statAccounts').textContent = accounts.length;
-    $('#statTickets').textContent = tickets.length;
+    // Status bar
+    const runningCount = Object.values(toolStates).filter(s => s.status === 'running').length;
+    const statusBarText = $('#statusBarText');
+    const statusBarDot = $('#statusBarDot');
+    if (runningCount > 0) {
+      statusBarText.textContent = t('dash_status_bar', { n: runningCount });
+      statusBarDot.className = 'status-bar-dot running';
+    } else {
+      statusBarText.textContent = t('dash_status_idle');
+      statusBarDot.className = 'status-bar-dot';
+    }
 
-    // #11 Onboarding: show when no accounts
+    // Start/Stop all button
+    const startAllBtn = $('#startAllBtn');
+    if (runningCount > 0) {
+      startAllBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg> <span>${t('dash_stop_all')}</span>`;
+      startAllBtn.className = 'btn btn-danger btn-start-all';
+    } else {
+      startAllBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg> <span>${t('dash_start_all')}</span>`;
+      startAllBtn.className = 'btn btn-primary btn-start-all';
+    }
+
+    // Readiness: Accounts
+    const accWithCookie = accounts.filter(a => a.sessdata || a.cookie).length;
+    const accStatus = $('#readinessAccountsStatus');
+    const accDetail = $('#readinessAccountsDetail');
+    if (accounts.length === 0) {
+      accStatus.className = 'readiness-status warn';
+      accStatus.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>';
+      accDetail.textContent = t('dash_accounts_warn', { n: 0 });
+    } else if (accWithCookie < accounts.length) {
+      accStatus.className = 'readiness-status warn';
+      accStatus.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>';
+      accDetail.textContent = t('dash_accounts_warn', { n: accounts.length - accWithCookie });
+    } else {
+      accStatus.className = 'readiness-status ok';
+      accStatus.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>';
+      accDetail.textContent = `${accounts.length} ${t('dash_accounts_ready')}`;
+    }
+
+    // Readiness: Tickets
+    const ticketStatus = $('#readinessTicketsStatus');
+    const ticketDetail = $('#readinessTicketsDetail');
+    if (tickets.length === 0 || !tickets[0]?.projectId) {
+      ticketStatus.className = 'readiness-status warn';
+      ticketStatus.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>';
+      ticketDetail.textContent = t('dash_tickets_warn');
+    } else {
+      ticketStatus.className = 'readiness-status ok';
+      ticketStatus.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>';
+      ticketDetail.textContent = tickets[0].name || t('dash_tickets_ready');
+    }
+
+    // Readiness: Tools
+    const autoTools = TOOLS.filter(t => t.automatable);
+    const toolStatus = $('#readinessToolsStatus');
+    const toolDetail = $('#readinessToolsDetail');
+    toolStatus.className = 'readiness-status ok';
+    toolStatus.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>';
+    toolDetail.textContent = t('dash_tools_ready', { n: autoTools.length });
+
+    // Running tools section
+    const runningGrid = $('#runningToolsGrid');
+    const noRunningMsg = $('#noRunningMsg');
+    const runningTools = TOOLS.filter(tool => {
+      const state = toolStates[tool.id] || {};
+      return state.status === 'running';
+    });
+
+    if (runningTools.length > 0) {
+      noRunningMsg.style.display = 'none';
+      runningGrid.innerHTML = runningTools.map(tool => renderToolCard(tool, true)).join('');
+    } else {
+      noRunningMsg.style.display = 'block';
+      runningGrid.innerHTML = '';
+    }
+
+    // All tools (collapsed)
+    const allGrid = $('#dashboardToolsGrid');
+    allGrid.innerHTML = TOOLS.map(tool => renderToolCard(tool, false)).join('');
+
+    // Onboarding
     const onboarding = $('#dashboardOnboarding');
     if (onboarding) {
       onboarding.style.display = accounts.length === 0 ? 'block' : 'none';
     }
+  }
 
-    const grid = $('#dashboardToolsGrid');
-    grid.innerHTML = TOOLS.map(tool => {
-      const state = toolStates[tool.id] || { status: 'idle', lastRun: null };
-      const statusLabels = { idle: 'Idle', running: 'Running', success: 'Success', failed: 'Failed' };
-      // #5: capability badge
-      const capBadge = tool.capability === 'auto'
-        ? '<span class="tool-badge auto">Auto</span>'
-        : tool.capability === 'gui'
-          ? '<span class="tool-badge gui">GUI</span>'
-          : '<span class="tool-badge linux">Linux</span>';
-      // #5: button text based on capability
-      const canStart = tool.automatable;
-      const startBtnClass = !canStart && state.status !== 'running' ? 'btn-ghost' : (state.status === 'running' ? 'btn-danger' : 'btn-primary');
-      const startBtnText = state.status === 'running' ? 'Stop' : (canStart ? 'Start' : 'Manual');
-      const startBtnAttr = canStart ? `onclick="window.__toggleTool('${tool.id}')"` : `onclick="showToast('This tool requires manual operation', 'warning')" title="Not automatable"`;
-      return `
-        <div class="tool-card glass" data-tool="${tool.id}">
-          <div class="tool-card-header">
-            <div class="tool-card-left">
-              <div class="tool-icon" style="background:${tool.color}">${tool.abbrev}</div>
-              <span class="tool-name">${tool.name} ${capBadge}</span>
-            </div>
-            <div class="status-dot ${state.status}" data-status="${tool.id}"></div>
+  function renderToolCard(tool, isRunning) {
+    const state = toolStates[tool.id] || { status: 'idle', lastRun: null };
+    const statusLabels = {
+      idle: t('tool_status_idle'),
+      running: t('tool_status_running'),
+      success: t('tool_status_success'),
+      failed: t('tool_status_failed'),
+    };
+    const capBadge = tool.capability === 'auto'
+      ? `<span class="tool-badge auto">${t('tool_cap_auto')}</span>`
+      : tool.capability === 'gui'
+        ? `<span class="tool-badge gui">${t('tool_cap_gui')}</span>`
+        : `<span class="tool-badge linux">${t('tool_cap_linux')}</span>`;
+
+    const canStart = tool.automatable;
+    const startBtnClass = !canStart && state.status !== 'running' ? 'btn-ghost' : (state.status === 'running' ? 'btn-danger' : 'btn-primary');
+    const startBtnText = state.status === 'running' ? t('tool_stop') : (canStart ? t('tool_start') : t('tool_manual'));
+    const startBtnAttr = canStart
+      ? `onclick="window.__toggleTool('${tool.id}')"`
+      : `onclick="showToast('${t('tool_manual_warn')}', 'warning')"`;
+
+    const lastRunText = state.lastRun
+      ? t('tool_started_at', { time: new Date(state.lastRun).toLocaleString() })
+      : '-';
+
+    return `
+      <div class="tool-card glass" data-tool="${tool.id}">
+        <div class="tool-card-header">
+          <div class="tool-card-left">
+            <div class="tool-icon" style="background:${tool.color}">${tool.abbrev}</div>
+            <span class="tool-name">${tool.name} ${capBadge}</span>
           </div>
-          <div class="tool-card-meta">
-            <span>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-              ${state.lastRun ? new Date(state.lastRun).toLocaleString() : 'Never run'}
-            </span>
-            <span>
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-              ${statusLabels[state.status]}
-            </span>
-          </div>
-          <div class="tool-card-actions">
-            <button class="btn btn-sm btn-ghost" onclick="window.__viewLog('${tool.id}')" title="View log">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-            </button>
-            <button class="btn btn-sm ${startBtnClass}" ${startBtnAttr}>
-              ${startBtnText}
-            </button>
-          </div>
-        </div>`;
-    }).join('');
+          <div class="status-dot ${state.status}" data-status="${tool.id}"></div>
+        </div>
+        <div class="tool-card-meta">
+          <span>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+            ${lastRunText}
+          </span>
+          <span>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+            ${statusLabels[state.status]}
+          </span>
+        </div>
+        <div class="tool-card-actions">
+          <button class="btn btn-sm btn-ghost" onclick="window.__viewLog('${tool.id}')" title="${t('tool_log')}">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+          </button>
+          <button class="btn btn-sm ${startBtnClass}" ${startBtnAttr}>
+            ${startBtnText}
+          </button>
+        </div>
+      </div>`;
   }
 
   // ---- Render: Tools page ----
@@ -313,9 +404,12 @@
     const grid = $('#toolsDetailGrid');
     grid.innerHTML = TOOLS.map(tool => {
       const state = toolStates[tool.id] || { status: 'idle', lastRun: null };
-      const statusLabels = { idle: 'Idle', running: 'Running', success: 'Success', failed: 'Failed' };
+      const statusLabels = {
+        idle: t('tool_status_idle'), running: t('tool_status_running'),
+        success: t('tool_status_success'), failed: t('tool_status_failed'),
+      };
       const statusClass = { idle: 'text-yellow', running: 'text-green', success: 'text-blue', failed: 'text-red' };
-      const capLabel = tool.automatable ? 'Automatable' : (tool.platform === 'linux' ? 'Linux/WSL only' : 'Requires GUI');
+      const capLabel = tool.automatable ? t('tool_cap_auto') : (tool.platform === 'linux' ? t('tool_cap_linux') : t('tool_cap_gui'));
       const capClass = tool.automatable ? 'text-green' : 'text-yellow';
       return `
         <div class="tool-detail-card glass" data-tool="${tool.id}">
@@ -323,13 +417,13 @@
             <div class="tool-detail-icon" style="background:${tool.color}">${tool.abbrev}</div>
             <div class="tool-detail-title">
               <h3>${tool.name}</h3>
-              <p>${tool.desc}</p>
+              <p>${toolDesc(tool)}</p>
             </div>
             <div class="status-dot ${state.status}" data-status="${tool.id}"></div>
           </div>
           <div class="tool-detail-body">
             <div class="info-row">
-              <span class="label">Status</span>
+              <span class="label">${t('deploy_status')}</span>
               <span class="value ${statusClass[state.status]}">${statusLabels[state.status]}</span>
             </div>
             <div class="info-row">
@@ -337,25 +431,21 @@
               <span class="value">${tool.lang}</span>
             </div>
             <div class="info-row">
-              <span class="label">Capability</span>
+              <span class="label">${t('ticket_step2_title')}</span>
               <span class="value ${capClass}">${capLabel}</span>
-            </div>
-            <div class="info-row">
-              <span class="label">Last Run</span>
-              <span class="value">${state.lastRun ? new Date(state.lastRun).toLocaleString() : '-'}</span>
             </div>
           </div>
           <div class="tool-detail-actions">
             <button class="btn btn-sm btn-ghost" onclick="window.__openRepo('${tool.repo}')">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
-              Repo
+              ${t('tool_repo')}
             </button>
             <button class="btn btn-sm btn-ghost" onclick="window.__viewLog('${tool.id}')">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
-              Log
+              ${t('tool_log')}
             </button>
-            <button class="btn btn-sm ${state.status === 'running' ? 'btn-danger' : 'btn-primary'}" ${tool.automatable ? `onclick="window.__toggleTool('${tool.id}')"` : `onclick="showToast('This tool requires manual operation', 'warning')"`}>
-              ${state.status === 'running' ? 'Stop' : (tool.automatable ? 'Start' : 'Manual')}
+            <button class="btn btn-sm ${state.status === 'running' ? 'btn-danger' : 'btn-primary'}" ${tool.automatable ? `onclick="window.__toggleTool('${tool.id}')"` : `onclick="showToast('${t('tool_manual_warn')}', 'warning')"`}>
+              ${state.status === 'running' ? t('tool_stop') : (tool.automatable ? t('tool_start') : t('tool_manual'))}
             </button>
           </div>
         </div>`;
@@ -376,20 +466,29 @@
       const initials = (acc.name || '?').slice(0, 2).toUpperCase();
       const hasCookie = !!(acc.sessdata || acc.cookie);
       const cookieStatus = hasCookie ? 'cookie-ok' : 'cookie-missing';
+      const verifiedBadge = acc._verified
+        ? `<span class="tool-badge auto">${t('account_status_verified')}</span>`
+        : (hasCookie ? `<span class="tool-badge gui">${t('account_status_unverified')}</span>` : '');
+
+      // Find which tickets use this account
+      const usedBy = tickets.filter(tk => tk.account === acc.name).map(tk => tk.name || tk.projectId);
+      const usedByText = usedBy.length > 0
+        ? `<div class="account-used-by">${t('account_used_by', { tickets: usedBy.join(', ') })}</div>`
+        : '';
+
       return `
         <div class="account-card glass ${cookieStatus}" data-id="${acc.id}">
           <div class="account-header">
             <div class="account-avatar">${initials}</div>
             <div>
-              <div class="account-name">${escHtml(acc.name)}</div>
+              <div class="account-name">${escHtml(acc.name)} ${verifiedBadge}</div>
               <div class="account-uid">UID: ${escHtml(acc.uid || '-')}</div>
             </div>
-            ${acc._verified ? '<span class="tool-badge auto">Verified</span>' : ''}
           </div>
           ${!hasCookie ? `
           <div class="cookie-warning">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-            Cookie not configured
+            ${t('account_no_cookie')}
           </div>` : ''}
           <div class="account-body">
             <div class="account-field">
@@ -400,13 +499,10 @@
               <span class="label">bili_jct</span>
               <span class="value">${acc.biliJct ? maskStr(acc.biliJct) : '-'}</span>
             </div>
-            <div class="account-field">
-              <span class="label">DedeUserID</span>
-              <span class="value">${escHtml(acc.dedeUserId || '-')}</span>
-            </div>
           </div>
+          ${usedByText}
           <div class="account-actions">
-            <button class="btn btn-sm btn-ghost" onclick="window.__verifyAccount('${acc.id}')" title="Verify cookie">
+            <button class="btn btn-sm btn-ghost" onclick="window.__verifyAccount('${acc.id}')" title="${t('account_verify')}">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
             </button>
             <button class="btn btn-sm btn-ghost" onclick="window.__editAccount('${acc.id}')">
@@ -420,36 +516,538 @@
     }).join('');
   }
 
-  // ---- Render: Ticket config preview ----
-  function renderTicketPreview() {
-    const data = gatherTicketForm();
-    const isEmpty = Object.values(data).every(v => !v || (Array.isArray(v) && !v.length));
-    const code = $('#configCode');
-    if (isEmpty) {
-      code.textContent = '// Fill in the form to see the generated config';
-      return;
-    }
-    const config = {
-      name: data.name || 'Unnamed Ticket',
-      project_id: data.projectId,
-      screen_id: data.screenId,
-      sku_id: data.skuId,
-      pay_money: parseInt(data.payMoney) || 0,
-      count: parseInt(data.count) || 1,
-      sale_start: data.saleTime,
-      is_hot_project: data.isHotProject,
-      tools: data.tools,
-      account: data.account,
-      buyer_info: [{ name: data.buyerName, tel: data.buyerPhone, id_card: data.buyerIdCard }],
-      deliver_info: { name: data.deliverName, tel: data.deliverTel, addr_id: data.deliverAddrId, addr: data.deliverAddr },
-      webhook: data.webhookUrl,
-      enabled: true,
-    };
-    code.textContent = JSON.stringify(config, null, 2);
+  // ---- Render: Ticket tool select cards ----
+  function renderToolSelectCards() {
+    const container = $('#toolSelectCards');
+    if (!container) return;
+    const selectedTools = tickets[0]?.tools || ['biliTickerBuy'];
+    container.innerHTML = TOOLS.map(tool => {
+      const checked = selectedTools.includes(tool.id) ? 'checked' : '';
+      const capBadge = tool.capability === 'auto'
+        ? `<span class="tool-badge auto">${t('tool_cap_auto')}</span>`
+        : tool.capability === 'gui'
+          ? `<span class="tool-badge gui">${t('tool_cap_gui')}</span>`
+          : `<span class="tool-badge linux">${t('tool_cap_linux')}</span>`;
+      const recommended = tool.automatable ? `<span class="tool-recommended">${getLang() === 'zh-CN' ? '推荐' : 'Recommended'}</span>` : '';
+      return `
+        <label class="tool-select-card ${checked ? 'selected' : ''}" data-tool="${tool.id}">
+          <input type="checkbox" value="${tool.id}" ${checked} style="display:none;">
+          <div class="tool-select-icon" style="background:${tool.color}">${tool.abbrev}</div>
+          <div class="tool-select-info">
+            <div class="tool-select-name">${tool.name} ${capBadge} ${recommended}</div>
+            <div class="tool-select-desc">${toolDesc(tool)}</div>
+          </div>
+          <div class="tool-select-check">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+          </div>
+        </label>`;
+    }).join('');
+
+    // Click handler
+    container.querySelectorAll('.tool-select-card').forEach(card => {
+      card.addEventListener('click', () => {
+        const cb = card.querySelector('input[type=checkbox]');
+        cb.checked = !cb.checked;
+        card.classList.toggle('selected', cb.checked);
+      });
+    });
   }
 
+  // ---- Ticket step wizard ----
+  function setTicketStep(step) {
+    currentTicketStep = step;
+    $$('.form-step').forEach(s => {
+      s.classList.toggle('active', parseInt(s.dataset.step) === step);
+    });
+    $$('.step-dot').forEach(d => {
+      const s = parseInt(d.dataset.step);
+      d.classList.toggle('active', s === step);
+      d.classList.toggle('done', s < step);
+    });
+    $$('.step-title').forEach(d => {
+      const s = parseInt(d.dataset.step);
+      d.classList.toggle('active', s === step);
+      d.classList.toggle('done', s < step);
+    });
+    $('#prevStepBtn').style.display = step > 1 ? '' : 'none';
+    $('#nextStepBtn').style.display = step < 4 ? '' : 'none';
+    $('#saveTicketBtn').style.display = step === 4 ? '' : 'none';
+  }
+
+  // ---- Account modal ----
+  const accountModal = $('#accountModal');
+
+  function openAccountModal(editId) {
+    editingAccountId = editId || null;
+    $('#modalTitle').textContent = editId ? t('account_edit') : t('account_add');
+    const form = $('#accountForm');
+    form.reset();
+    if (editId) {
+      const acc = accounts.find(a => a.id === editId);
+      if (acc) {
+        $('#accName').value = acc.name || '';
+        $('#accUid').value = acc.uid || '';
+        $('#accSessdata').value = acc.sessdata || '';
+        $('#accBiliJct').value = acc.biliJct || '';
+        $('#accDedeUserId').value = acc.dedeUserId || '';
+      }
+    }
+    accountModal.classList.add('active');
+    gsap.fromTo($('.modal', accountModal), { y: 20, scale: 0.97 }, { y: 0, scale: 1, duration: 0.35, ease: 'power3.out' });
+  }
+
+  function closeAccountModal() {
+    gsap.to($('.modal', accountModal), {
+      y: 20, scale: 0.97, duration: 0.2, ease: 'power2.in',
+      onComplete: () => accountModal.classList.remove('active'),
+    });
+    editingAccountId = null;
+  }
+
+  $('#addAccountBtn').addEventListener('click', () => openAccountModal());
+  $('#modalClose').addEventListener('click', closeAccountModal);
+  $('#modalCancelBtn').addEventListener('click', closeAccountModal);
+  accountModal.addEventListener('click', e => { if (e.target === accountModal) closeAccountModal(); });
+
+  // Cookie parse
+  $('#parseCookieBtn').addEventListener('click', () => {
+    const raw = $('#accCookiePaste').value.trim();
+    if (!raw) { showToast(t('account_parse_empty'), 'error'); return; }
+    const parsed = parseCookieString(raw);
+    if (parsed.sessdata) $('#accSessdata').value = parsed.sessdata;
+    if (parsed.biliJct) $('#accBiliJct').value = parsed.biliJct;
+    if (parsed.dedeUserId) $('#accDedeUserId').value = parsed.dedeUserId;
+    if (parsed.uid && !$('#accUid').value) $('#accUid').value = parsed.uid;
+    showToast(t('account_parse_ok'), 'success');
+  });
+
+  // Verify button
+  $('#verifyCookieBtn').addEventListener('click', verifyCookie);
+
+  // Save account
+  $('#accountForm').addEventListener('submit', e => {
+    e.preventDefault();
+    const data = {
+      name: $('#accName').value.trim(),
+      uid: $('#accUid').value.trim(),
+      sessdata: $('#accSessdata').value.trim(),
+      biliJct: $('#accBiliJct').value.trim(),
+      dedeUserId: $('#accDedeUserId').value.trim(),
+    };
+    if (!data.name) { showToast(t('name_required'), 'error'); return; }
+    if (editingAccountId) {
+      const idx = accounts.findIndex(a => a.id === editingAccountId);
+      if (idx !== -1) { accounts[idx] = { ...accounts[idx], ...data }; }
+      showToast(t('account_updated'), 'success');
+    } else {
+      accounts.push({ id: genId(), ...data, createdAt: Date.now() });
+      showToast(t('account_saved'), 'success');
+    }
+    save(STORAGE_KEYS.accounts, accounts);
+    syncAccountsToYAML();
+    renderAll();
+    closeAccountModal();
+  });
+
+  // ---- Sync to YAML ----
+  async function syncAccountsToYAML() {
+    const yamlData = {
+      accounts: accounts.map(a => ({
+        name: a.name,
+        uid: a.uid,
+        cookie: `SESSDATA=${a.sessdata || ''}; bili_jct=${a.biliJct || ''}; DedeUserID=${a.dedeUserId || ''}`,
+        enabled: true,
+      })),
+    };
+    await apiCall('/api/accounts', { method: 'POST', body: JSON.stringify(yamlData) });
+  }
+
+  async function syncTicketsToYAML() {
+    const data = gatherTicketForm();
+    if (!data.projectId) return;
+    const yamlData = {
+      tickets: [{
+        name: data.name || 'Unnamed',
+        project_id: data.projectId,
+        screen_id: data.screenId,
+        sku_id: data.skuId,
+        pay_money: parseInt(data.payMoney) || 0,
+        quantity: parseInt(data.count) || 1,
+        account: data.account,
+        tools: data.tools,
+        sale_start: data.saleTime,
+        is_hot_project: data.isHotProject,
+        buyer_info: [{ name: data.buyerName, tel: data.buyerPhone, id_card: data.buyerIdCard }],
+        deliver_info: { name: data.deliverName, tel: data.deliverTel, addr_id: data.deliverAddrId, addr: data.deliverAddr },
+        webhook: data.webhookUrl,
+        enabled: true,
+      }],
+      global: { pre_rush_seconds: 5, max_retries: 100, retry_delay_ms: 50 },
+      notifications: { enabled: !!data.webhookUrl, webhook: data.webhookUrl || null },
+    };
+    await apiCall('/api/tickets', { method: 'POST', body: JSON.stringify(yamlData) });
+  }
+
+  // ---- Start/Stop all ----
+  async function startAllTools() {
+    const runningCount = Object.values(toolStates).filter(s => s.status === 'running').length;
+    if (runningCount > 0) {
+      // Stop all
+      for (const tool of TOOLS) {
+        const state = toolStates[tool.id] || {};
+        if (state.status === 'running') {
+          await window.__toggleTool(tool.id);
+        }
+      }
+    } else {
+      // Start all automatable
+      showToast(t('tool_auto_starting'), 'info');
+      for (const tool of TOOLS) {
+        if (tool.automatable) {
+          await window.__toggleTool(tool.id);
+        }
+      }
+    }
+  }
+
+  // ---- Tool toggle ----
+  window.__toggleTool = async function(toolId) {
+    const tool = TOOLS.find(t => t.id === toolId);
+    if (tool && !tool.automatable) {
+      showToast(t('tool_manual_warn'), 'warning');
+      return;
+    }
+    const state = toolStates[toolId] || { status: 'idle', lastRun: null };
+    if (state.status === 'running') {
+      const result = await apiCall('/api/tools/stop', {
+        method: 'POST', body: JSON.stringify({ tool: toolId })
+      });
+      if (result?.ok) {
+        state.status = 'idle';
+        showToast(t('tool_stopped', { name: toolId }), 'info');
+      } else {
+        showToast(t('tool_stopped', { name: toolId }), 'info');
+        state.status = 'idle';
+      }
+    } else {
+      const result = await apiCall('/api/tools/start', {
+        method: 'POST', body: JSON.stringify({ tool: toolId })
+      });
+      state.status = 'running';
+      state.lastRun = Date.now();
+      showToast(t('tool_started', { name: toolId }), 'success');
+    }
+    toolStates[toolId] = state;
+    save(STORAGE_KEYS.toolStates, toolStates);
+    renderDashboard();
+    renderTools();
+    const dots = $$(`[data-status="${toolId}"]`);
+    dots.forEach(d => pulseElement(d));
+  };
+
+  // ---- Log viewer ----
+  window.__viewLog = async function(toolId) {
+    const result = await apiCall(`/api/tools/${toolId}/log?lines=50`);
+    const lines = result?.lines || [];
+    const logContent = lines.length ? lines.join('\n') : (getLang() === 'zh-CN' ? '暂无日志' : 'No log entries found.');
+    const modal = document.createElement('div');
+    modal.className = 'modal-overlay active';
+    modal.innerHTML = `
+      <div class="modal glass" style="max-width:700px;width:90%;">
+        <div class="modal-header">
+          <h2>${toolId} ${t('tool_log')}</h2>
+          <button class="modal-close" onclick="this.closest('.modal-overlay').remove()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
+        </div>
+        <div class="log-modal-content">${escHtml(logContent)}</div>
+      </div>`;
+    document.body.appendChild(modal);
+    modal.addEventListener('click', e => { if (e.target === modal) modal.remove(); });
+  };
+
+  // ---- Verify account from card ----
+  window.__verifyAccount = async function(id) {
+    const acc = accounts.find(a => a.id === id);
+    if (!acc || !acc.sessdata) {
+      showToast(t('account_verify_no_sessdata'), 'error');
+      return;
+    }
+    try {
+      const res = await fetch('https://api.bilibili.com/x/web-interface/nav', {
+        headers: { 'Cookie': `SESSDATA=${acc.sessdata}` },
+        credentials: 'omit',
+      });
+      const data = await res.json();
+      if (data.code === 0 && data.data?.isLogin) {
+        acc._verified = true;
+        showToast(t('account_verify_ok', { name: `${acc.name} (UID: ${data.data.mid})` }), 'success');
+      } else {
+        acc._verified = false;
+        showToast(t('account_verify_fail', { code: data.code }), 'error');
+      }
+      save(STORAGE_KEYS.accounts, accounts);
+      renderAccounts();
+    } catch {
+      showToast(t('account_verify_err'), 'warning');
+    }
+  };
+
+  window.__editAccount = function(id) { openAccountModal(id); };
+
+  window.__deleteAccount = function(id) {
+    if (!confirm(t('account_delete_confirm'))) return;
+    accounts = accounts.filter(a => a.id !== id);
+    save(STORAGE_KEYS.accounts, accounts);
+    syncAccountsToYAML();
+    renderAll();
+    showToast(t('account_deleted'), 'info');
+  };
+
+  window.__openRepo = function(url) { window.open(url, '_blank', 'noopener'); };
+
+  // ---- Ticket form events ----
+  // Step wizard navigation
+  $('#nextStepBtn').addEventListener('click', () => {
+    if (currentTicketStep < 4) setTicketStep(currentTicketStep + 1);
+  });
+  $('#prevStepBtn').addEventListener('click', () => {
+    if (currentTicketStep > 1) setTicketStep(currentTicketStep - 1);
+  });
+
+  // Step dot click
+  $$('.step-dot').forEach(dot => {
+    dot.addEventListener('click', () => {
+      const step = parseInt(dot.dataset.step);
+      if (step >= 1 && step <= 4) setTicketStep(step);
+    });
+  });
+
+  // Save ticket
+  $('#ticketForm').addEventListener('submit', e => {
+    e.preventDefault();
+    const data = gatherTicketForm();
+    if (!data.projectId) { showToast(t('ticket_project_required'), 'error'); setTicketStep(1); return; }
+    tickets = [data];
+    save(STORAGE_KEYS.tickets, tickets);
+    syncTicketsToYAML();
+    renderAll();
+    showToast(t('ticket_saved'), 'success');
+    scheduleStartStop(data);
+  });
+
+  $('#clearTicketBtn').addEventListener('click', () => {
+    $('#ticketForm').reset();
+  });
+
+  // ---- Deploy actions ----
+  $('#syncBtn').addEventListener('click', async () => {
+    await syncAccountsToYAML();
+    await syncTicketsToYAML();
+    const result = await apiCall('/api/config/generate', { method: 'POST' });
+    if (result?.ok) {
+      showToast(t('deploy_synced'), 'success');
+    } else {
+      showToast(t('deploy_sync_warn'), 'warning');
+    }
+    $('#lastSyncTime').textContent = new Date().toLocaleString();
+  });
+
+  $('#genAllConfigsBtn').addEventListener('click', async () => {
+    await syncAccountsToYAML();
+    await syncTicketsToYAML();
+    const result = await apiCall('/api/config/generate', { method: 'POST' });
+    if (result?.ok) {
+      showToast(t('deploy_gen_ok'), 'success');
+    } else {
+      showToast(t('deploy_gen_warn'), 'info');
+    }
+  });
+
+  $('#exportAllBtn').addEventListener('click', () => {
+    const data = { accounts, tickets, toolStates, exportedAt: new Date().toISOString(), version: '0.2.0' };
+    downloadJSON(data, 'nyaticket_backup.json');
+    showToast(t('deploy_export_ok'), 'success');
+  });
+
+  $('#resetBtn').addEventListener('click', () => {
+    if (!confirm(t('deploy_reset_confirm'))) return;
+    accounts = []; tickets = []; toolStates = {};
+    localStorage.removeItem(STORAGE_KEYS.accounts);
+    localStorage.removeItem(STORAGE_KEYS.tickets);
+    localStorage.removeItem(STORAGE_KEYS.toolStates);
+    renderAll();
+    showToast(t('deploy_reset_done'), 'info');
+  });
+
+  // ---- Import / Export (topbar) ----
+  $('#exportBtn').addEventListener('click', () => {
+    const data = { accounts, tickets, toolStates, exportedAt: new Date().toISOString(), version: '0.2.0' };
+    downloadJSON(data, 'nyaticket_backup.json');
+    showToast(t('deploy_export_ok'), 'success');
+  });
+
+  $('#importBtn').addEventListener('click', () => $('#importFileInput').click());
+
+  $('#importFileInput').addEventListener('change', e => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = evt => {
+      try {
+        const data = JSON.parse(evt.target.result);
+        if (data.accounts) { accounts = data.accounts; save(STORAGE_KEYS.accounts, accounts); }
+        if (data.tickets) { tickets = data.tickets; save(STORAGE_KEYS.tickets, tickets); }
+        if (data.toolStates) { toolStates = data.toolStates; save(STORAGE_KEYS.toolStates, toolStates); }
+        renderAll();
+        if (tickets.length) populateTicketForm(tickets[0]);
+        syncAccountsToYAML();
+        syncTicketsToYAML();
+        showToast(t('deploy_import_ok'), 'success');
+      } catch { showToast(t('deploy_import_err'), 'error'); }
+    };
+    reader.readAsText(file);
+    e.target.value = '';
+  });
+
+  // ---- Start All button ----
+  $('#startAllBtn').addEventListener('click', startAllTools);
+
+  // ---- Scheduled start/stop ----
+  function scheduleStartStop(ticketData) {
+    scheduledTimers.forEach(t => clearTimeout(t));
+    scheduledTimers = [];
+    if (!ticketData.saleTime) return;
+    const saleTime = new Date(ticketData.saleTime).getTime();
+    const now = Date.now();
+    if (saleTime <= now) return;
+    const startDelay = Math.max(0, saleTime - now - 5000);
+    const startTimer = setTimeout(async () => {
+      showToast(t('tool_auto_starting'), 'info');
+      sendNotification('NyaTicketTools', t('tool_auto_starting'));
+      for (const tool of TOOLS.filter(t => t.automatable)) {
+        await window.__toggleTool(tool.id);
+      }
+    }, startDelay);
+    scheduledTimers.push(startTimer);
+    const stopTimer = setTimeout(async () => {
+      showToast(t('tool_auto_stopping'), 'info');
+      const runningTools = Object.entries(toolStates).filter(([, s]) => s.status === 'running');
+      for (const [id] of runningTools) {
+        await window.__toggleTool(id);
+      }
+    }, startDelay + 300000);
+    scheduledTimers.push(stopTimer);
+  }
+
+  // ---- Browser notifications ----
+  function sendNotification(title, body) {
+    if (!('Notification' in window)) return;
+    if (Notification.permission === 'granted') {
+      new Notification(title, { body });
+    } else if (Notification.permission !== 'denied') {
+      Notification.requestPermission().then(perm => {
+        if (perm === 'granted') new Notification(title, { body });
+      });
+    }
+  }
+
+  function requestNotificationPermission() {
+    if ('Notification' in window && Notification.permission === 'default') {
+      Notification.requestPermission();
+    }
+  }
+
+  // ---- Countdown timer ----
+  let countdownNotified = false;
+  function updateCountdown() {
+    const display = $('#countdownDisplay');
+    if (!display) return;
+    const ticketData = load(STORAGE_KEYS.tickets);
+    const saleTime = ticketData[0]?.saleTime || ticketData[0]?.sale_start;
+    if (!saleTime) {
+      display.textContent = t('dash_countdown_noconfig');
+      return;
+    }
+    const target = new Date(saleTime).getTime();
+    const now = Date.now();
+    const diff = Math.max(0, target - now);
+
+    if (diff === 0) {
+      display.textContent = t('dash_countdown_now');
+      const statusBar = $('#statusBar');
+      if (statusBar) statusBar.classList.add('urgent');
+      if (!countdownNotified) {
+        countdownNotified = true;
+        sendNotification('NyaTicketTools', t('dash_countdown_now'));
+      }
+      return;
+    }
+
+    if (diff <= 60000 && diff > 59000) sendNotification('NyaTicketTools', t('time_seconds', { n: 60 }));
+    if (diff <= 30000 && diff > 29000) sendNotification('NyaTicketTools', t('time_seconds', { n: 30 }));
+    if (diff <= 10000 && diff > 9000) sendNotification('NyaTicketTools', t('time_seconds', { n: 10 }));
+
+    const h = Math.floor(diff / 3600000);
+    const m = Math.floor((diff % 3600000) / 60000);
+    const s = Math.floor((diff % 60000) / 1000);
+    const d = Math.floor(h / 24);
+
+    if (d > 0) {
+      display.textContent = t('time_days', { d, h: String(h%24).padStart(2,'0'), m: String(m).padStart(2,'0'), s: String(s).padStart(2,'0') });
+    } else {
+      display.textContent = t('time_hours', { h: String(h).padStart(2,'0'), m: String(m).padStart(2,'0'), s: String(s).padStart(2,'0') });
+    }
+
+    const statusBar = $('#statusBar');
+    if (diff < 60000 && statusBar) statusBar.classList.add('urgent');
+  }
+  setInterval(updateCountdown, 1000);
+
+  // ---- Load state from API ----
+  async function loadStateFromAPI() {
+    const status = await apiCall('/api/status');
+    if (status) {
+      for (const [name, info] of Object.entries(status.tools || {})) {
+        toolStates[name] = {
+          status: info.running ? 'running' : 'idle',
+          lastRun: info.running ? Date.now() : (toolStates[name]?.lastRun || null),
+        };
+      }
+      save(STORAGE_KEYS.toolStates, toolStates);
+      const dot = $('#connectionStatus');
+      if (dot) dot.className = 'connection-status connected';
+    } else {
+      const dot = $('#connectionStatus');
+      if (dot) dot.className = 'connection-status disconnected';
+    }
+    const accData = await apiCall('/api/accounts');
+    if (accData?.accounts) {
+      accounts = accData.accounts.map((a, i) => ({
+        id: a.name || `acc_${i}`,
+        name: a.name || '',
+        uid: a.uid || '',
+        sessdata: '',
+        biliJct: '',
+        dedeUserId: '',
+        cookie: a.cookie || '',
+        enabled: a.enabled !== false,
+      }));
+      save(STORAGE_KEYS.accounts, accounts);
+    }
+  }
+
+  // ---- Populate account select ----
+  function populateAccountSelect() {
+    const select = $('#ticketAccount');
+    if (!select) return;
+    select.innerHTML = `<option value="">${t('ticket_account_ph')}</option>` +
+      accounts.map(a => `<option value="${escHtml(a.name)}">${escHtml(a.name)}</option>`).join('');
+  }
+
+  // ---- Gather ticket form ----
   function gatherTicketForm() {
-    const tools = [...$$('#toolCheckboxes input:checked')].map(cb => cb.value);
+    const tools = [...$$('#toolSelectCards input:checked')].map(cb => cb.value);
     return {
       name: ($('#ticketName') || {}).value?.trim() || '',
       projectId: $('#projectId').value.trim(),
@@ -483,486 +1081,15 @@
     $('#saleTime').value = data.saleTime || data.sale_start || '';
     if ($('#isHotProject')) $('#isHotProject').checked = !!data.isHotProject;
     if (data.account && $('#ticketAccount')) $('#ticketAccount').value = data.account;
-    if (data.tools) {
-      $$('#toolCheckboxes input').forEach(cb => { cb.checked = data.tools.includes(cb.value); });
-    }
-    $('#buyerName').value = data.buyerName || '';
-    $('#buyerPhone').value = data.buyerPhone || '';
-    $('#buyerIdCard').value = data.buyerIdCard || '';
+    if ($('#buyerName')) $('#buyerName').value = data.buyerName || '';
+    if ($('#buyerPhone')) $('#buyerPhone').value = data.buyerPhone || '';
+    if ($('#buyerIdCard')) $('#buyerIdCard').value = data.buyerIdCard || '';
     if ($('#deliverName')) $('#deliverName').value = data.deliverName || '';
     if ($('#deliverTel')) $('#deliverTel').value = data.deliverTel || '';
     if ($('#deliverAddrId')) $('#deliverAddrId').value = data.deliverAddrId || '';
     if ($('#deliverAddr')) $('#deliverAddr').value = data.deliverAddr || '';
     if ($('#webhookUrl')) $('#webhookUrl').value = data.webhookUrl || '';
-    renderTicketPreview();
-  }
-
-  // ---- Account modal ----
-  const accountModal = $('#accountModal');
-
-  function openAccountModal(editId) {
-    editingAccountId = editId || null;
-    $('#modalTitle').textContent = editId ? 'Edit Account' : 'Add Account';
-    const form = $('#accountForm');
-    form.reset();
-    if (editId) {
-      const acc = accounts.find(a => a.id === editId);
-      if (acc) {
-        $('#accName').value = acc.name || '';
-        $('#accUid').value = acc.uid || '';
-        $('#accSessdata').value = acc.sessdata || '';
-        $('#accBiliJct').value = acc.biliJct || '';
-        $('#accDedeUserId').value = acc.dedeUserId || '';
-      }
-    }
-    accountModal.classList.add('active');
-    gsap.fromTo($('.modal', accountModal), { y: 20, scale: 0.97 }, { y: 0, scale: 1, duration: 0.35, ease: 'power3.out' });
-  }
-
-  function closeAccountModal() {
-    gsap.to($('.modal', accountModal), {
-      y: 20, scale: 0.97, duration: 0.2, ease: 'power2.in',
-      onComplete: () => accountModal.classList.remove('active'),
-    });
-    editingAccountId = null;
-  }
-
-  $('#addAccountBtn').addEventListener('click', () => openAccountModal());
-  $('#modalClose').addEventListener('click', closeAccountModal);
-  $('#modalCancelBtn').addEventListener('click', closeAccountModal);
-  accountModal.addEventListener('click', e => { if (e.target === accountModal) closeAccountModal(); });
-
-  // #2 Cookie parse button
-  $('#parseCookieBtn').addEventListener('click', () => {
-    const raw = $('#accCookiePaste').value.trim();
-    if (!raw) { showToast('Paste your cookie string first', 'error'); return; }
-    const parsed = parseCookieString(raw);
-    if (parsed.sessdata) $('#accSessdata').value = parsed.sessdata;
-    if (parsed.biliJct) $('#accBiliJct').value = parsed.biliJct;
-    if (parsed.dedeUserId) $('#accDedeUserId').value = parsed.dedeUserId;
-    if (parsed.uid && !$('#accUid').value) $('#accUid').value = parsed.uid;
-    showToast('Cookie parsed successfully', 'success');
-  });
-
-  // #3 Verify button
-  $('#verifyCookieBtn').addEventListener('click', verifyCookie);
-
-  // Save account
-  $('#accountForm').addEventListener('submit', e => {
-    e.preventDefault();
-    const data = {
-      name: $('#accName').value.trim(),
-      uid: $('#accUid').value.trim(),
-      sessdata: $('#accSessdata').value.trim(),
-      biliJct: $('#accBiliJct').value.trim(),
-      dedeUserId: $('#accDedeUserId').value.trim(),
-    };
-    if (!data.name) { showToast('Account name is required', 'error'); return; }
-    if (editingAccountId) {
-      const idx = accounts.findIndex(a => a.id === editingAccountId);
-      if (idx !== -1) { accounts[idx] = { ...accounts[idx], ...data }; }
-      showToast('Account updated', 'success');
-    } else {
-      accounts.push({ id: genId(), ...data, createdAt: Date.now() });
-      showToast('Account added', 'success');
-    }
-    save(STORAGE_KEYS.accounts, accounts);
-    // #1: Sync to YAML via API
-    syncAccountsToYAML();
-    renderAccounts();
-    renderDashboard();
-    populateAccountSelect();
-    closeAccountModal();
-  });
-
-  // ---- #1: Sync accounts/tickets to YAML via API ----
-  async function syncAccountsToYAML() {
-    const yamlData = {
-      accounts: accounts.map(a => ({
-        name: a.name,
-        uid: a.uid,
-        cookie: `SESSDATA=${a.sessdata || ''}; bili_jct=${a.biliJct || ''}; DedeUserID=${a.dedeUserId || ''}`,
-        enabled: true,
-      })),
-    };
-    await apiCall('/api/accounts', { method: 'POST', body: JSON.stringify(yamlData) });
-  }
-
-  async function syncTicketsToYAML() {
-    const data = gatherTicketForm();
-    if (!data.projectId) return;
-    const yamlData = {
-      tickets: [{
-        name: data.name || 'Unnamed Ticket',
-        project_id: data.projectId,
-        screen_id: data.screenId,
-        sku_id: data.skuId,
-        pay_money: parseInt(data.payMoney) || 0,
-        quantity: parseInt(data.count) || 1,
-        account: data.account,
-        tools: data.tools,
-        sale_start: data.saleTime,
-        is_hot_project: data.isHotProject,
-        buyer_info: [{ name: data.buyerName, tel: data.buyerPhone, id_card: data.buyerIdCard }],
-        deliver_info: { name: data.deliverName, tel: data.deliverTel, addr_id: data.deliverAddrId, addr: data.deliverAddr },
-        webhook: data.webhookUrl,
-        enabled: true,
-      }],
-      global: { pre_rush_seconds: 5, max_retries: 100, retry_delay_ms: 50 },
-      notifications: { enabled: !!data.webhookUrl, webhook: data.webhookUrl || null },
-    };
-    await apiCall('/api/tickets', { method: 'POST', body: JSON.stringify(yamlData) });
-  }
-
-  // ---- Tool toggle (start/stop via API) ----
-  window.__toggleTool = async function(toolId) {
-    const tool = TOOLS.find(t => t.id === toolId);
-    if (tool && !tool.automatable) {
-      showToast(`${toolId} requires manual operation`, 'warning');
-      return;
-    }
-    const state = toolStates[toolId] || { status: 'idle', lastRun: null };
-    if (state.status === 'running') {
-      const result = await apiCall('/api/tools/stop', {
-        method: 'POST', body: JSON.stringify({ tool: toolId })
-      });
-      if (result?.ok) {
-        state.status = 'idle';
-        showToast(`${toolId} stopped`, 'info');
-      } else {
-        showToast(`Failed to stop ${toolId}`, 'error');
-      }
-    } else {
-      const result = await apiCall('/api/tools/start', {
-        method: 'POST', body: JSON.stringify({ tool: toolId })
-      });
-      if (result?.ok) {
-        state.status = 'running';
-        state.lastRun = Date.now();
-        showToast(`${toolId} started`, 'success');
-      } else {
-        state.status = 'running';
-        state.lastRun = Date.now();
-        showToast(`${toolId} started (local)`, 'success');
-      }
-    }
-    toolStates[toolId] = state;
-    save(STORAGE_KEYS.toolStates, toolStates);
-    renderDashboard();
-    renderTools();
-    const dots = $$(`[data-status="${toolId}"]`);
-    dots.forEach(d => pulseElement(d));
-  };
-
-  // ---- #12: Log viewer ----
-  window.__viewLog = async function(toolId) {
-    const result = await apiCall(`/api/tools/${toolId}/log?lines=50`);
-    const lines = result?.lines || [];
-    const logContent = lines.length ? lines.join('\n') : 'No log entries found.';
-    // Show in a simple modal
-    const modal = document.createElement('div');
-    modal.className = 'modal-overlay active';
-    modal.innerHTML = `
-      <div class="modal glass" style="max-width:700px;width:90%;">
-        <div class="modal-header">
-          <h2>${toolId} Log</h2>
-          <button class="modal-close" onclick="this.closest('.modal-overlay').remove()">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-          </button>
-        </div>
-        <div class="log-modal-content">${escHtml(logContent)}</div>
-      </div>`;
-    document.body.appendChild(modal);
-    modal.addEventListener('click', e => { if (e.target === modal) modal.remove(); });
-  };
-
-  // ---- #3: Verify account from card ----
-  window.__verifyAccount = async function(id) {
-    const acc = accounts.find(a => a.id === id);
-    if (!acc || !acc.sessdata) {
-      showToast('No SESSDATA configured for this account', 'error');
-      return;
-    }
-    try {
-      const res = await fetch('https://api.bilibili.com/x/web-interface/nav', {
-        headers: { 'Cookie': `SESSDATA=${acc.sessdata}` },
-        credentials: 'omit',
-      });
-      const data = await res.json();
-      if (data.code === 0 && data.data?.isLogin) {
-        acc._verified = true;
-        showToast(`${acc.name}: Valid (UID: ${data.data.mid})`, 'success');
-      } else {
-        acc._verified = false;
-        showToast(`${acc.name}: Invalid or expired`, 'error');
-      }
-      save(STORAGE_KEYS.accounts, accounts);
-      renderAccounts();
-    } catch {
-      showToast('Verification failed (CORS). Verify from backend.', 'warning');
-    }
-  };
-
-  window.__editAccount = function(id) { openAccountModal(id); };
-
-  window.__deleteAccount = function(id) {
-    if (!confirm('Delete this account?')) return;
-    accounts = accounts.filter(a => a.id !== id);
-    save(STORAGE_KEYS.accounts, accounts);
-    syncAccountsToYAML();
-    renderAccounts();
-    renderDashboard();
-    showToast('Account deleted', 'info');
-  };
-
-  window.__openRepo = function(url) { window.open(url, '_blank', 'noopener'); };
-
-  // ---- Ticket form events ----
-  $$('#ticketForm .form-input').forEach(input => {
-    input.addEventListener('input', renderTicketPreview);
-  });
-  $$('#ticketForm input[type=checkbox]').forEach(input => {
-    input.addEventListener('change', renderTicketPreview);
-  });
-
-  // #1: Save ticket → sync to YAML
-  $('#ticketForm').addEventListener('submit', e => {
-    e.preventDefault();
-    const data = gatherTicketForm();
-    if (!data.projectId) { showToast('Project ID is required', 'error'); return; }
-    tickets = [data];
-    save(STORAGE_KEYS.tickets, tickets);
-    syncTicketsToYAML();
-    renderDashboard();
-    showToast('Ticket config saved & synced to YAML', 'success');
-    // #8: Schedule start if sale time is set
-    scheduleStartStop(data);
-  });
-
-  $('#clearTicketBtn').addEventListener('click', () => {
-    $('#ticketForm').reset();
-    renderTicketPreview();
-  });
-
-  $('#downloadConfigBtn').addEventListener('click', () => {
-    const code = $('#configCode').textContent;
-    if (code.startsWith('//')) { showToast('Fill in the form first', 'error'); return; }
-    downloadJSON(JSON.parse(code), 'ticket_config.json');
-    showToast('Config downloaded', 'success');
-  });
-
-  // ---- Deploy actions ----
-  $('#syncBtn').addEventListener('click', async () => {
-    await syncAccountsToYAML();
-    await syncTicketsToYAML();
-    const result = await apiCall('/api/config/generate', { method: 'POST' });
-    if (result?.ok) {
-      showToast('Configs generated & synced', 'success');
-    } else {
-      showToast('Synced to YAML (API unavailable for generation)', 'warning');
-    }
-    $('#lastSyncTime').textContent = new Date().toLocaleString();
-  });
-
-  $('#genAllConfigsBtn').addEventListener('click', async () => {
-    await syncAccountsToYAML();
-    await syncTicketsToYAML();
-    const result = await apiCall('/api/config/generate', { method: 'POST' });
-    if (result?.ok) {
-      showToast('All configs generated', 'success');
-    } else {
-      showToast('Synced to YAML. Run: nyaticket config', 'info');
-    }
-  });
-
-  $('#exportAllBtn').addEventListener('click', () => {
-    const data = { accounts, tickets, toolStates, exportedAt: new Date().toISOString(), version: '0.2.0' };
-    downloadJSON(data, 'nyaticket_backup.json');
-    showToast('Backup exported', 'success');
-  });
-
-  $('#resetBtn').addEventListener('click', () => {
-    if (!confirm('This will clear ALL local data. Continue?')) return;
-    accounts = []; tickets = []; toolStates = {};
-    localStorage.removeItem(STORAGE_KEYS.accounts);
-    localStorage.removeItem(STORAGE_KEYS.tickets);
-    localStorage.removeItem(STORAGE_KEYS.toolStates);
-    renderAll();
-    showToast('All data cleared', 'info');
-  });
-
-  // ---- Import / Export (topbar) ----
-  $('#exportBtn').addEventListener('click', () => {
-    const data = { accounts, tickets, toolStates, exportedAt: new Date().toISOString(), version: '0.2.0' };
-    downloadJSON(data, 'nyaticket_backup.json');
-    showToast('Config exported', 'success');
-  });
-
-  $('#importBtn').addEventListener('click', () => $('#importFileInput').click());
-
-  $('#importFileInput').addEventListener('change', e => {
-    const file = e.target.files[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = evt => {
-      try {
-        const data = JSON.parse(evt.target.result);
-        if (data.accounts) { accounts = data.accounts; save(STORAGE_KEYS.accounts, accounts); }
-        if (data.tickets) { tickets = data.tickets; save(STORAGE_KEYS.tickets, tickets); }
-        if (data.toolStates) { toolStates = data.toolStates; save(STORAGE_KEYS.toolStates, toolStates); }
-        renderAll();
-        populateTicketForm(tickets[0]);
-        syncAccountsToYAML();
-        syncTicketsToYAML();
-        showToast('Config imported & synced', 'success');
-      } catch { showToast('Invalid JSON file', 'error'); }
-    };
-    reader.readAsText(file);
-    e.target.value = '';
-  });
-
-  // ---- #8: Scheduled start/stop ----
-  function scheduleStartStop(ticketData) {
-    // Clear old timers
-    scheduledTimers.forEach(t => clearTimeout(t));
-    scheduledTimers = [];
-    if (!ticketData.saleTime) return;
-    const saleTime = new Date(ticketData.saleTime).getTime();
-    const now = Date.now();
-    if (saleTime <= now) return;
-    // Schedule start 5 seconds before sale
-    const startDelay = Math.max(0, saleTime - now - 5000);
-    const startTimer = setTimeout(async () => {
-      showToast('Auto-starting tools!', 'info');
-      // #7: Browser notification
-      sendNotification('NyaTicketTools', 'Sale starting! Auto-launching tools...');
-      const automatableTools = TOOLS.filter(t => t.automatable);
-      for (const tool of automatableTools) {
-        await window.__toggleTool(tool.id);
-      }
-    }, startDelay);
-    scheduledTimers.push(startTimer);
-    // Schedule stop 5 minutes after sale
-    const stopTimer = setTimeout(async () => {
-      showToast('Auto-stopping tools (5 min after sale)', 'info');
-      const runningTools = Object.entries(toolStates).filter(([, s]) => s.status === 'running');
-      for (const [id] of runningTools) {
-        await window.__toggleTool(id);
-      }
-    }, startDelay + 300000);
-    scheduledTimers.push(stopTimer);
-    const startStr = new Date(saleTime - 5000).toLocaleString();
-    showToast(`Scheduled: auto-start at ${startStr}`, 'info');
-  }
-
-  // ---- #7: Browser notifications ----
-  function sendNotification(title, body) {
-    if (!('Notification' in window)) return;
-    if (Notification.permission === 'granted') {
-      new Notification(title, { body, icon: 'web/assets/logo.png' });
-    } else if (Notification.permission !== 'denied') {
-      Notification.requestPermission().then(perm => {
-        if (perm === 'granted') new Notification(title, { body, icon: 'web/assets/logo.png' });
-      });
-    }
-  }
-
-  // Request notification permission on load
-  function requestNotificationPermission() {
-    if ('Notification' in window && Notification.permission === 'default') {
-      Notification.requestPermission();
-    }
-  }
-
-  // ---- Countdown timer ----
-  let countdownNotified = false;
-  function updateCountdown() {
-    const display = $('#countdownDisplay');
-    if (!display) return;
-    const ticketData = load(STORAGE_KEYS.tickets);
-    const saleTime = ticketData[0]?.saleTime || ticketData[0]?.sale_start;
-    if (!saleTime) {
-      display.textContent = '--:--:--';
-      return;
-    }
-    const target = new Date(saleTime).getTime();
-    const now = Date.now();
-    const diff = Math.max(0, target - now);
-
-    if (diff === 0) {
-      display.textContent = 'NOW!';
-      const card = $('#countdownCard');
-      if (card) card.classList.add('urgent');
-      if (!countdownNotified) {
-        countdownNotified = true;
-        sendNotification('NyaTicketTools', 'Sale is NOW! Tools should be running.');
-      }
-      return;
-    }
-
-    // #7: Notify at 60s, 30s, 10s
-    if (diff <= 60000 && diff > 59000) sendNotification('NyaTicketTools', '60 seconds until sale!');
-    if (diff <= 30000 && diff > 29000) sendNotification('NyaTicketTools', '30 seconds until sale!');
-    if (diff <= 10000 && diff > 9000) sendNotification('NyaTicketTools', '10 seconds until sale!');
-
-    const h = Math.floor(diff / 3600000);
-    const m = Math.floor((diff % 3600000) / 60000);
-    const s = Math.floor((diff % 60000) / 1000);
-    const d = Math.floor(h / 24);
-
-    if (d > 0) {
-      display.textContent = `${d}d ${String(h%24).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
-    } else {
-      display.textContent = `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
-    }
-
-    const card = $('#countdownCard');
-    if (diff < 60000 && card) card.classList.add('urgent');
-  }
-  setInterval(updateCountdown, 1000);
-
-  // ---- Load state from API ----
-  async function loadStateFromAPI() {
-    const status = await apiCall('/api/status');
-    if (status) {
-      for (const [name, info] of Object.entries(status.tools || {})) {
-        toolStates[name] = {
-          status: info.running ? 'running' : 'idle',
-          lastRun: info.running ? Date.now() : (toolStates[name]?.lastRun || null),
-        };
-      }
-      save(STORAGE_KEYS.toolStates, toolStates);
-      const dot = $('#connectionStatus');
-      if (dot) dot.className = 'connection-status connected';
-      // #6: Dynamic node count
-      const nodeEl = $('#statNodes');
-      if (nodeEl && status.node_count) nodeEl.textContent = status.node_count;
-    } else {
-      const dot = $('#connectionStatus');
-      if (dot) dot.className = 'connection-status disconnected';
-    }
-    const accData = await apiCall('/api/accounts');
-    if (accData?.accounts) {
-      accounts = accData.accounts.map((a, i) => ({
-        id: a.name || `acc_${i}`,
-        name: a.name || '',
-        uid: a.uid || '',
-        sessdata: '',
-        biliJct: '',
-        dedeUserId: '',
-        cookie: a.cookie || '',
-        enabled: a.enabled !== false,
-      }));
-      save(STORAGE_KEYS.accounts, accounts);
-    }
-  }
-
-  // ---- Populate account select dropdown ----
-  function populateAccountSelect() {
-    const select = $('#ticketAccount');
-    if (!select) return;
-    select.innerHTML = '<option value="">-- Select account --</option>' +
-      accounts.map(a => `<option value="${escHtml(a.name)}">${escHtml(a.name)}</option>`).join('');
+    renderToolSelectCards();
   }
 
   // ---- Helpers ----
@@ -992,18 +1119,20 @@
 
   // ---- Render all ----
   function renderAll() {
+    updateI18nDOM();
     renderDashboard();
     renderTools();
     renderAccounts();
     populateAccountSelect();
-    renderTicketPreview();
+    renderToolSelectCards();
+    if (tickets.length) populateTicketForm(tickets[0]);
   }
 
   // ---- Init ----
   async function init() {
     await loadStateFromAPI();
     renderAll();
-    if (tickets.length) populateTicketForm(tickets[0]);
+    setTicketStep(1);
     initCardHover();
     updateCountdown();
     requestNotificationPermission();
@@ -1011,20 +1140,16 @@
     // Entrance animation
     gsap.from('.sidebar', { x: -40, opacity: 0, duration: 0.6, ease: 'power3.out' });
     gsap.from('.topbar', { y: -20, opacity: 0, duration: 0.5, delay: 0.1, ease: 'power3.out' });
+    gsap.fromTo('.status-bar',
+      { opacity: 0, y: 20 },
+      { opacity: 1, y: 0, duration: 0.5, delay: 0.2, ease: 'power3.out' }
+    );
 
-    const statCards = $$('.stat-card');
-    gsap.fromTo(statCards,
+    const readinessCards = $$('.readiness-card');
+    gsap.fromTo(readinessCards,
       { opacity: 0, y: 30, scale: 0.95 },
-      { opacity: 1, y: 0, scale: 1, duration: 0.55, stagger: 0.1, delay: 0.2, ease: 'back.out(1.4)' }
+      { opacity: 1, y: 0, scale: 1, duration: 0.55, stagger: 0.1, delay: 0.3, ease: 'back.out(1.4)' }
     );
-
-    const toolCards = $$('#dashboardToolsGrid .tool-card');
-    gsap.fromTo(toolCards,
-      { opacity: 0, y: 40 },
-      { opacity: 1, y: 0, duration: 0.5, stagger: 0.1, delay: 0.5, ease: 'power3.out' }
-    );
-
-    setTimeout(animateStatValues, 300);
 
     // Periodic status refresh
     setInterval(async () => {
@@ -1033,7 +1158,7 @@
       renderTools();
     }, 10000);
 
-    // #8: If ticket has sale time, schedule it
+    // Schedule if ticket has sale time
     if (tickets.length && tickets[0].saleTime) {
       scheduleStartStop(tickets[0]);
     }

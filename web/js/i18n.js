@@ -1,0 +1,398 @@
+/* ============================================================
+   NyaTicketTools – i18n (Internationalization)
+   ============================================================ */
+
+const I18N = {
+  'zh-CN': {
+    // Nav
+    nav_dashboard: '总览',
+    nav_accounts: '账号管理',
+    nav_tickets: '抢票配置',
+    nav_tools: '工具管理',
+    nav_deploy: '多机部署',
+
+    // Topbar
+    topbar_export: '导出配置',
+    topbar_import: '导入配置',
+
+    // Dashboard
+    dash_status_bar: '{n} 个工具运行中',
+    dash_status_idle: '无工具运行',
+    dash_countdown_label: '距离开售',
+    dash_countdown_now: '开售!',
+    dash_countdown_noconfig: '未设置开售时间',
+    dash_start_all: '开始抢票',
+    dash_stop_all: '停止所有',
+    dash_readiness: '就绪检查',
+    dash_accounts_ready: '账号就绪',
+    dash_accounts_warn: '{n} 个账号未配置 Cookie',
+    dash_tickets_ready: '票务已配置',
+    dash_tickets_warn: '未配置票务信息',
+    dash_tools_ready: '{n} 个自动化工具可用',
+    dash_tools_warn: '无自动化工具',
+    dash_running_tools: '运行中的工具',
+    dash_no_running: '当前无运行中的工具',
+    dash_onboarding_title: '开始使用 NyaTicketTools',
+    dash_onboarding_desc: '只需 3 步即可开始抢票',
+    dash_step1: '添加 B站账号',
+    step1_desc: '粘贴 Cookie，自动解析 SESSDATA、bili_jct',
+    dash_step2: '配置抢票目标',
+    step2_desc: '填写活动页面的 Project ID、Screen ID、SKU ID',
+    dash_step3: '点击开始抢票',
+    step3_desc: '系统会在开售前自动启动所有工具',
+
+    // Tools
+    tool_status_running: '运行中',
+    tool_status_idle: '空闲',
+    tool_status_success: '成功',
+    tool_status_failed: '失败',
+    tool_cap_auto: '全自动',
+    tool_cap_gui: '需桌面',
+    tool_cap_linux: '仅 Linux',
+    tool_start: '启动',
+    tool_stop: '停止',
+    tool_manual: '手动',
+    tool_log: '日志',
+    tool_repo: '源码',
+    tool_started: '{name} 已启动',
+    tool_stopped: '{name} 已停止',
+    tool_manual_warn: '该工具需要手动操作（GUI/桌面环境）',
+    tool_auto_starting: '正在自动启动工具...',
+    tool_auto_stopping: '正在自动停止工具（开售 5 分钟后）...',
+    tool_start_all: '一键启动所有自动化工具',
+    tool_started_at: '启动于 {time}',
+
+    // Accounts
+    account_add: '添加账号',
+    account_edit: '编辑账号',
+    account_name: '账号名称',
+    account_name_ph: '例如：主号',
+    account_uid: 'UID',
+    account_uid_ph: 'B站 UID',
+    account_cookie_paste: '一键粘贴 Cookie',
+    account_cookie_ph: '粘贴完整 Cookie 字符串',
+    account_parse: '解析',
+    account_parse_ok: 'Cookie 解析成功',
+    account_parse_empty: '请先粘贴 Cookie 字符串',
+    account_ssessdata: 'SESSDATA',
+    account_bilijct: 'bili_jct',
+    account_dedeuid: 'DedeUserID',
+    account_verify: '验证',
+    account_verifying: '验证中...',
+    account_verify_ok: 'Cookie 有效！登录用户：{name}',
+    account_verify_fail: 'Cookie 无效或已过期 (code: {code})',
+    account_verify_err: '验证失败（CORS/网络），请从后端验证',
+    account_verify_no_sessdata: '请先填写 SESSDATA',
+    account_cookie_hint: '浏览器登录 bilibili.com → F12 → Application → Cookies',
+    account_status_verified: '已验证',
+    account_status_unverified: '未验证',
+    account_status_expired: '已过期',
+    account_no_cookie: 'Cookie 未配置',
+    account_delete_confirm: '确定删除该账号？',
+    account_deleted: '账号已删除',
+    account_saved: '账号已保存',
+    account_updated: '账号已更新',
+    account_empty: '还没有账号',
+    account_empty_desc: '添加你的第一个 B站 账号开始使用',
+    account_used_by: '用于：{tickets}',
+
+    // Tickets
+    ticket_config: '抢票配置',
+    ticket_step1_title: '活动信息',
+    ticket_step2_title: '工具与账号',
+    ticket_step3_title: '购票人信息',
+    ticket_step4_title: '配送与通知',
+    ticket_name: '票务名称',
+    ticket_name_ph: '例如：周杰伦演唱会',
+    ticket_project_id: '活动 ID (Project ID)',
+    ticket_project_tip: 'B站票务页面 URL 中的 id 参数，如 show.bilibili.com/platform/projectDetail.html?id=12345',
+    ticket_screen_id: '场次 ID (Screen ID)',
+    ticket_screen_tip: '在票务页面选择场次后，F12 抓包可获取',
+    ticket_sku_id: '票档 ID (SKU ID)',
+    ticket_sku_tip: '选择票价后 F12 抓包可获取',
+    ticket_pay_money: '票价（分）',
+    ticket_pay_money_ph: '例如：48000（480元）',
+    ticket_count: '购票数量',
+    ticket_sale_time: '开售时间',
+    ticket_is_hot: '热门项目',
+    ticket_hot_hint: '开启后使用更激进的抢票策略',
+    ticket_select_tools: '选择工具',
+    ticket_tool_hint: 'Auto = 一键启动，GUI = 需桌面，Linux = 仅 Linux/WSL',
+    ticket_account: '绑定账号',
+    ticket_account_ph: '-- 选择账号 --',
+    ticket_buyer_name: '姓名',
+    ticket_buyer_phone: '手机号',
+    ticket_buyer_id: '身份证号',
+    ticket_deliver_name: '收件人',
+    ticket_deliver_tel: '联系电话',
+    ticket_deliver_addr_id: '地址 ID',
+    ticket_deliver_addr: '收件地址',
+    ticket_webhook: '通知 Webhook',
+    ticket_webhook_ph: '飞书/Server酱/PushPlus 等推送地址',
+    ticket_save: '保存配置',
+    ticket_clear: '清空',
+    ticket_saved: '票务配置已保存并同步到 YAML',
+    ticket_project_required: '请填写活动 ID',
+    ticket_preview: '配置预览',
+    ticket_preview_empty: '填写表单后预览配置',
+    ticket_download: '下载 config.json',
+    ticket_next: '下一步',
+    ticket_prev: '上一步',
+    ticket_step_indicator: '第 {n} 步，共 4 步',
+
+    // Deploy
+    deploy_overview: '部署概览',
+    deploy_node_local: '本机',
+    deploy_node_primary: '主节点',
+    deploy_status: '状态',
+    deploy_online: '在线',
+    deploy_offline: '离线',
+    deploy_tools_synced: '个工具已同步',
+    deploy_last_sync: '上次同步',
+    deploy_actions: '快捷操作',
+    deploy_sync: '同步配置',
+    deploy_gen_configs: '生成所有配置',
+    deploy_gen_configs_desc: '为所有工具生成配置文件',
+    deploy_export: '导出全部',
+    deploy_export_desc: '下载完整备份 JSON',
+    deploy_reset: '重置所有数据',
+    deploy_reset_desc: '清除所有本地配置',
+    deploy_reset_confirm: '将清除所有本地数据，确定继续？',
+    deploy_reset_done: '所有数据已清除',
+    deploy_synced: '配置已同步',
+    deploy_sync_warn: '已同步到 YAML（API 不可用于生成）',
+    deploy_gen_ok: '所有配置已生成',
+    deploy_gen_warn: '已同步到 YAML，请运行：nyaticket config',
+    deploy_export_ok: '备份已导出',
+    deploy_import_ok: '配置已导入并同步',
+    deploy_import_err: '无效的 JSON 文件',
+
+    // Connection
+    conn_connected: '已连接后端',
+    conn_disconnected: '后端未连接',
+
+    // Time
+    time_seconds: '{n} 秒后开售！',
+    time_days: '{d}天 {h}:{m}:{s}',
+    time_hours: '{h}:{m}:{s}',
+
+    // General
+    save: '保存',
+    cancel: '取消',
+    confirm: '确定',
+    delete: '删除',
+    name_required: '请填写账号名称',
+  },
+
+  'en': {
+    // Nav
+    nav_dashboard: 'Dashboard',
+    nav_accounts: 'Accounts',
+    nav_tickets: 'Tickets',
+    nav_tools: 'Tools',
+    nav_deploy: 'Deploy',
+
+    // Topbar
+    topbar_export: 'Export',
+    topbar_import: 'Import',
+
+    // Dashboard
+    dash_status_bar: '{n} tool(s) running',
+    dash_status_idle: 'No tools running',
+    dash_countdown_label: 'Sale Countdown',
+    dash_countdown_now: 'NOW!',
+    dash_countdown_noconfig: 'No sale time set',
+    dash_start_all: 'Start All',
+    dash_stop_all: 'Stop All',
+    dash_readiness: 'Readiness',
+    dash_accounts_ready: 'Accounts ready',
+    dash_accounts_warn: '{n} account(s) missing cookie',
+    dash_tickets_ready: 'Ticket configured',
+    dash_tickets_warn: 'No ticket configured',
+    dash_tools_ready: '{n} automatable tool(s)',
+    dash_tools_warn: 'No automatable tools',
+    dash_running_tools: 'Running Tools',
+    dash_no_running: 'No tools currently running',
+    dash_onboarding_title: 'Get Started with NyaTicketTools',
+    dash_onboarding_desc: 'Just 3 steps to start grabbing tickets',
+    dash_step1: 'Add Bilibili Account',
+    step1_desc: 'Paste cookie to auto-parse SESSDATA, bili_jct',
+    dash_step2: 'Configure Ticket Target',
+    step2_desc: 'Fill in Project ID, Screen ID, SKU ID from the event page',
+    dash_step3: 'Click Start',
+    step3_desc: 'Tools will auto-launch before sale time',
+
+    // Tools
+    tool_status_running: 'Running',
+    tool_status_idle: 'Idle',
+    tool_status_success: 'Success',
+    tool_status_failed: 'Failed',
+    tool_cap_auto: 'Auto',
+    tool_cap_gui: 'GUI',
+    tool_cap_linux: 'Linux',
+    tool_start: 'Start',
+    tool_stop: 'Stop',
+    tool_manual: 'Manual',
+    tool_log: 'Log',
+    tool_repo: 'Repo',
+    tool_started: '{name} started',
+    tool_stopped: '{name} stopped',
+    tool_manual_warn: 'This tool requires manual operation (GUI/desktop)',
+    tool_auto_starting: 'Auto-starting tools...',
+    tool_auto_stopping: 'Auto-stopping tools (5 min after sale)...',
+    tool_start_all: 'Start all automatable tools',
+    tool_started_at: 'Started at {time}',
+
+    // Accounts
+    account_add: 'Add Account',
+    account_edit: 'Edit Account',
+    account_name: 'Account Name',
+    account_name_ph: 'e.g. My Bilibili',
+    account_uid: 'UID',
+    account_uid_ph: 'Bilibili UID',
+    account_cookie_paste: 'Paste Cookie',
+    account_cookie_ph: 'Paste full cookie string',
+    account_parse: 'Parse',
+    account_parse_ok: 'Cookie parsed successfully',
+    account_parse_empty: 'Paste your cookie string first',
+    account_sessdata: 'SESSDATA',
+    account_bilijct: 'bili_jct',
+    account_dedeuid: 'DedeUserID',
+    account_verify: 'Verify',
+    account_verifying: 'Verifying...',
+    account_verify_ok: 'Cookie valid! Logged in as: {name}',
+    account_verify_fail: 'Cookie invalid or expired (code: {code})',
+    account_verify_err: 'Verification failed (CORS/network)',
+    account_verify_no_sessdata: 'Please fill in SESSDATA first',
+    account_cookie_hint: 'Browser: bilibili.com -> F12 -> Application -> Cookies',
+    account_status_verified: 'Verified',
+    account_status_unverified: 'Unverified',
+    account_status_expired: 'Expired',
+    account_no_cookie: 'Cookie not configured',
+    account_delete_confirm: 'Delete this account?',
+    account_deleted: 'Account deleted',
+    account_saved: 'Account saved',
+    account_updated: 'Account updated',
+    account_empty: 'No accounts yet',
+    account_empty_desc: 'Add your first Bilibili account to get started',
+    account_used_by: 'Used by: {tickets}',
+
+    // Tickets
+    ticket_config: 'Ticket Configuration',
+    ticket_step1_title: 'Event Info',
+    ticket_step2_title: 'Tools & Account',
+    ticket_step3_title: 'Buyer Info',
+    ticket_step4_title: 'Delivery & Notifications',
+    ticket_name: 'Ticket Name',
+    ticket_name_ph: 'e.g. Concert Ticket',
+    ticket_project_id: 'Project ID',
+    ticket_project_tip: 'The id parameter in the Bilibili ticket page URL',
+    ticket_screen_id: 'Screen ID',
+    ticket_screen_tip: 'Get from network tab after selecting a session',
+    ticket_sku_id: 'SKU ID',
+    ticket_sku_tip: 'Get from network tab after selecting price tier',
+    ticket_pay_money: 'Price (fen)',
+    ticket_pay_money_ph: 'e.g. 48000 (= 480 yuan)',
+    ticket_count: 'Quantity',
+    ticket_sale_time: 'Sale Time',
+    ticket_is_hot: 'Hot Project',
+    ticket_hot_hint: 'Enable aggressive grabbing strategy',
+    ticket_select_tools: 'Select Tools',
+    ticket_tool_hint: 'Auto = one-click, GUI = needs desktop, Linux = WSL/Linux only',
+    ticket_account: 'Account',
+    ticket_account_ph: '-- Select account --',
+    ticket_buyer_name: 'Name',
+    ticket_buyer_phone: 'Phone',
+    ticket_buyer_id: 'ID Card',
+    ticket_deliver_name: 'Recipient',
+    ticket_deliver_tel: 'Phone',
+    ticket_deliver_addr_id: 'Address ID',
+    ticket_deliver_addr: 'Address',
+    ticket_webhook: 'Webhook URL',
+    ticket_webhook_ph: 'Feishu/ServerChan/PushPlus webhook',
+    ticket_save: 'Save Config',
+    ticket_clear: 'Clear',
+    ticket_saved: 'Ticket config saved & synced to YAML',
+    ticket_project_required: 'Project ID is required',
+    ticket_preview: 'Config Preview',
+    ticket_preview_empty: 'Fill in the form to see preview',
+    ticket_download: 'Download config.json',
+    ticket_next: 'Next',
+    ticket_prev: 'Previous',
+    ticket_step_indicator: 'Step {n} of 4',
+
+    // Deploy
+    deploy_overview: 'Deployment Overview',
+    deploy_node_local: 'Local Machine',
+    deploy_node_primary: 'Primary',
+    deploy_status: 'Status',
+    deploy_online: 'Online',
+    deploy_offline: 'Offline',
+    deploy_tools_synced: 'tools synced',
+    deploy_last_sync: 'Last Sync',
+    deploy_actions: 'Quick Actions',
+    deploy_sync: 'Sync Config',
+    deploy_gen_configs: 'Generate All Configs',
+    deploy_gen_configs_desc: 'Create config files for all tools',
+    deploy_export: 'Export Everything',
+    deploy_export_desc: 'Download full backup as JSON',
+    deploy_reset: 'Reset All Data',
+    deploy_reset_desc: 'Clear all local configuration',
+    deploy_reset_confirm: 'This will clear ALL local data. Continue?',
+    deploy_reset_done: 'All data cleared',
+    deploy_synced: 'Configs generated & synced',
+    deploy_sync_warn: 'Synced to YAML (API unavailable for generation)',
+    deploy_gen_ok: 'All configs generated',
+    deploy_gen_warn: 'Synced to YAML. Run: nyaticket config',
+    deploy_export_ok: 'Backup exported',
+    deploy_import_ok: 'Config imported & synced',
+    deploy_import_err: 'Invalid JSON file',
+
+    // Connection
+    conn_connected: 'Backend connected',
+    conn_disconnected: 'Backend disconnected',
+
+    // Time
+    time_seconds: '{n}s until sale!',
+    time_days: '{d}d {h}:{m}:{s}',
+    time_hours: '{h}:{m}:{s}',
+
+    // General
+    save: 'Save',
+    cancel: 'Cancel',
+    confirm: 'OK',
+    delete: 'Delete',
+    name_required: 'Account name is required',
+  },
+};
+
+// Detect language
+function detectLang() {
+  const saved = localStorage.getItem('nya_lang');
+  if (saved && I18N[saved]) return saved;
+  const nav = navigator.language || 'en';
+  if (nav.startsWith('zh')) return 'zh-CN';
+  return 'en';
+}
+
+let currentLang = detectLang();
+
+function t(key, params) {
+  let str = (I18N[currentLang] && I18N[currentLang][key]) || (I18N['en'] && I18N['en'][key]) || key;
+  if (params) {
+    for (const [k, v] of Object.entries(params)) {
+      str = str.replace(new RegExp(`\\{${k}\\}`, 'g'), v);
+    }
+  }
+  return str;
+}
+
+function setLang(lang) {
+  if (!I18N[lang]) return;
+  currentLang = lang;
+  localStorage.setItem('nya_lang', lang);
+  // Trigger re-render
+  if (typeof renderAll === 'function') renderAll();
+}
+
+function getLang() { return currentLang; }

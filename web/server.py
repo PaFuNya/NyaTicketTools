@@ -111,6 +111,46 @@ class APIHandler(BaseHTTPRequestHandler):
             return {}
         return json.loads(self.rfile.read(length))
 
+    def _serve_static(self, path):
+        """Serve static files from the web directory."""
+        if path == "" or path == "/":
+            path = "/index.html"
+        # Map URL path to file system
+        file_path = Path(__file__).resolve().parent / path.lstrip("/")
+        # Security: prevent directory traversal
+        try:
+            file_path = file_path.resolve()
+            if not str(file_path).startswith(str(Path(__file__).resolve().parent)):
+                return self._json({"error": "Forbidden"}, 403)
+        except (ValueError, OSError):
+            return self._json({"error": "Not found"}, 404)
+        if not file_path.exists() or not file_path.is_file():
+            return self._json({"error": "Not found"}, 404)
+        # Determine content type
+        ext = file_path.suffix.lower()
+        content_types = {
+            ".html": "text/html; charset=utf-8",
+            ".css": "text/css; charset=utf-8",
+            ".js": "application/javascript; charset=utf-8",
+            ".json": "application/json",
+            ".png": "image/png",
+            ".jpg": "image/jpeg",
+            ".jpeg": "image/jpeg",
+            ".gif": "image/gif",
+            ".svg": "image/svg+xml",
+            ".ico": "image/x-icon",
+            ".woff": "font/woff",
+            ".woff2": "font/woff2",
+        }
+        ct = content_types.get(ext, "application/octet-stream")
+        data = file_path.read_bytes()
+        self.send_response(200)
+        self.send_header("Content-Type", ct)
+        self.send_header("Content-Length", str(len(data)))
+        self._cors()
+        self.end_headers()
+        self.wfile.write(data)
+
     def do_OPTIONS(self):
         self.send_response(204)
         self._cors()
@@ -134,7 +174,8 @@ class APIHandler(BaseHTTPRequestHandler):
             lines = int(qs.get("lines", ["100"])[0])
             return self._handle_tool_log(tool, lines)
 
-        self._json({"error": "Not found"}, 404)
+        # Static file serving
+        return self._serve_static(path)
 
     def do_POST(self):
         path = urlparse(self.path).path.rstrip("/")
