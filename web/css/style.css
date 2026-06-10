@@ -721,6 +721,133 @@ body {
   color: var(--text-secondary);
 }
 
+/* --- Tool capability badges --- */
+.tool-badge {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: 0.65rem; font-weight: 600;
+  padding: 2px 7px; border-radius: 999px;
+  text-transform: uppercase; letter-spacing: 0.04em;
+  vertical-align: middle;
+}
+.tool-badge.auto {
+  background: rgba(16,185,129,0.15);
+  color: var(--green);
+  border: 1px solid rgba(16,185,129,0.25);
+}
+.tool-badge.gui {
+  background: rgba(245,158,11,0.15);
+  color: var(--yellow);
+  border: 1px solid rgba(245,158,11,0.25);
+}
+.tool-badge.linux {
+  background: rgba(59,130,246,0.15);
+  color: var(--blue);
+  border: 1px solid rgba(59,130,246,0.25);
+}
+
+/* --- Field hints (tooltips) --- */
+.field-hint {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 16px; height: 16px; border-radius: 50%;
+  font-size: 0.65rem; font-weight: 700;
+  background: rgba(255,255,255,0.08);
+  color: var(--text-muted);
+  cursor: help; position: relative;
+  margin-left: 4px; vertical-align: middle;
+  transition: color 0.2s, background 0.2s;
+}
+.field-hint:hover {
+  color: var(--text-primary);
+  background: rgba(124,58,237,0.25);
+}
+.field-hint::after {
+  content: attr(data-tip);
+  position: absolute; bottom: calc(100% + 6px); left: 50%;
+  transform: translateX(-50%);
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 6px 10px;
+  font-size: 0.72rem; font-weight: 400;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  max-width: 260px; white-space: normal;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.4);
+  opacity: 0; pointer-events: none;
+  transition: opacity 0.2s;
+  z-index: 10;
+}
+.field-hint:hover::after { opacity: 1; }
+
+/* --- Cookie paste row --- */
+.cookie-paste-row {
+  display: flex; gap: 8px; align-items: flex-start;
+}
+.cookie-paste-row textarea {
+  flex: 1;
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 10px 12px;
+  color: var(--text-primary);
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  resize: vertical;
+  min-height: 60px;
+  outline: none;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+.cookie-paste-row textarea::placeholder { color: var(--text-muted); }
+.cookie-paste-row textarea:focus {
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px var(--primary-glow);
+}
+.cookie-paste-row .btn { flex-shrink: 0; margin-top: 2px; }
+
+/* --- Cookie verification status --- */
+.cookie-status {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 0.78rem; padding: 4px 0;
+}
+.cookie-status svg { width: 14px; height: 14px; flex-shrink: 0; }
+.cookie-ok { color: var(--green); }
+.cookie-ok svg { color: var(--green); }
+.cookie-missing { color: var(--text-muted); }
+.cookie-missing svg { color: var(--text-muted); }
+.cookie-invalid { color: var(--red); }
+.cookie-invalid svg { color: var(--red); }
+
+/* --- Onboarding steps --- */
+.onboarding-steps {
+  display: flex; flex-direction: column; gap: 16px;
+  max-width: 480px; margin: 0 auto;
+}
+.onboarding-step {
+  display: flex; align-items: flex-start; gap: 14px;
+  padding: 16px; border-radius: var(--radius);
+  background: rgba(255,255,255,0.03);
+  border: 1px solid var(--border);
+  transition: border-color 0.2s;
+}
+.onboarding-step:hover { border-color: var(--border-active); }
+.onboarding-step-num {
+  width: 32px; height: 32px; border-radius: 50%;
+  background: rgba(124,58,237,0.15);
+  color: var(--primary);
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 700; font-size: 0.85rem; flex-shrink: 0;
+}
+.onboarding-step-text h4 {
+  font-size: 0.9rem; font-weight: 600; margin-bottom: 4px;
+}
+.onboarding-step-text p {
+  font-size: 0.8rem; color: var(--text-muted); line-height: 1.4;
+}
+.onboarding-step-text a {
+  color: var(--primary); text-decoration: none;
+}
+.onboarding-step-text a:hover { text-decoration: underline; }
+
 /* --- Responsive --- */
 @media (max-width: 1024px) {
   .ticket-layout,

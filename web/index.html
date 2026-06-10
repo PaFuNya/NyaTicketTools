@@ -15,7 +15,7 @@
     <div class="sidebar-header">
       <div class="logo">
         <svg class="logo-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
-        <span class="logo-text">NyaTicker</span>
+        <span class="logo-text">NyaTicketTools</span>
       </div>
       <button class="sidebar-toggle" id="sidebarToggle" aria-label="Toggle sidebar">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
@@ -126,6 +126,19 @@
         <div class="tools-grid" id="dashboardToolsGrid">
           <!-- Populated by JS -->
         </div>
+        <div class="empty-state onboarding" id="dashboardOnboarding" style="display:none;">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+          <p>Welcome to NyaTicketTools</p>
+          <span>Start by adding a Bilibili account, then configure your ticket target</span>
+          <div class="onboarding-steps">
+            <button class="btn btn-primary" onclick="document.querySelector('[data-page=accounts]').click()">
+              1. Add Account
+            </button>
+            <button class="btn btn-ghost" onclick="document.querySelector('[data-page=tickets]').click()">
+              2. Configure Ticket
+            </button>
+          </div>
+        </div>
       </section>
 
       <!-- ===== ACCOUNTS PAGE ===== -->
@@ -160,15 +173,15 @@
                     <input type="text" id="ticketName" placeholder="e.g. 周杰伦演唱会" class="form-input">
                   </div>
                   <div class="form-group">
-                    <label for="projectId">Project ID</label>
+                    <label for="projectId">Project ID <span class="field-hint" title="B站票务页面URL中的id参数，如 show.bilibili.com/platform/projectDetail.html?id=12345">?</span></label>
                     <input type="text" id="projectId" placeholder="e.g. 12345" class="form-input">
                   </div>
                   <div class="form-group">
-                    <label for="screenId">Screen ID</label>
+                    <label for="screenId">Screen ID <span class="field-hint" title="场次ID，在票务页面选择场次后，F12抓包可获取">?</span></label>
                     <input type="text" id="screenId" placeholder="e.g. 67890" class="form-input">
                   </div>
                   <div class="form-group">
-                    <label for="skuId">SKU ID</label>
+                    <label for="skuId">SKU ID <span class="field-hint" title="票档ID，选择票价后F12抓包可获取">?</span></label>
                     <input type="text" id="skuId" placeholder="e.g. 11111" class="form-input">
                   </div>
                   <div class="form-group">
@@ -212,11 +225,12 @@
                   <div class="form-group">
                     <label>Select Tools</label>
                     <div class="checkbox-group" id="toolCheckboxes">
-                      <label class="checkbox-label"><input type="checkbox" value="biliTickerBuy" checked> biliTickerBuy</label>
-                      <label class="checkbox-label"><input type="checkbox" value="BHYG"> BHYG</label>
-                      <label class="checkbox-label"><input type="checkbox" value="bili_ticket_rush"> bili_ticket_rush</label>
-                      <label class="checkbox-label"><input type="checkbox" value="bili-ticket-go"> bili-ticket-go</label>
+                      <label class="checkbox-label"><input type="checkbox" value="biliTickerBuy" checked> biliTickerBuy <span class="tool-badge auto">Auto</span></label>
+                      <label class="checkbox-label"><input type="checkbox" value="BHYG"> BHYG <span class="tool-badge auto">Auto</span></label>
+                      <label class="checkbox-label"><input type="checkbox" value="bili_ticket_rush"> bili_ticket_rush <span class="tool-badge gui">GUI</span></label>
+                      <label class="checkbox-label"><input type="checkbox" value="bili-ticket-go"> bili-ticket-go <span class="tool-badge linux">Linux</span></label>
                     </div>
+                    <span class="form-hint">Auto = one-click start. GUI = needs desktop. Linux = WSL/Linux only.</span>
                   </div>
                   <div class="form-group">
                     <label for="ticketAccount">Account</label>
@@ -361,6 +375,14 @@
           <input type="text" id="accName" placeholder="e.g. My Bilibili" class="form-input" required>
         </div>
         <div class="form-group">
+          <label for="accCookiePaste">Cookie (one-click paste)</label>
+          <div class="cookie-paste-row">
+            <textarea id="accCookiePaste" placeholder="Paste full cookie string here: SESSDATA=xxx; bili_jct=yyy; DedeUserID=zzz" class="form-input" rows="2"></textarea>
+            <button type="button" class="btn btn-sm btn-ghost" id="parseCookieBtn" title="Auto-parse cookie">Parse</button>
+          </div>
+          <span class="form-hint">Paste the full cookie from browser, click Parse to auto-fill fields below</span>
+        </div>
+        <div class="form-group">
           <label for="accUid">UID</label>
           <input type="text" id="accUid" placeholder="Bilibili UID" class="form-input">
         </div>
@@ -377,6 +399,10 @@
           <input type="text" id="accDedeUserId" placeholder="DedeUserID cookie" class="form-input">
         </div>
         <div class="modal-actions">
+          <button type="button" class="btn btn-ghost" id="verifyCookieBtn">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+            Verify
+          </button>
           <button type="button" class="btn btn-ghost" id="modalCancelBtn">Cancel</button>
           <button type="submit" class="btn btn-primary">Save</button>
         </div>
