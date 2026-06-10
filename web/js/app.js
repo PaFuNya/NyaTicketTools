@@ -745,25 +745,73 @@
     dots.forEach(d => pulseElement(d));
   };
 
-  // ---- Log viewer ----
+  // ---- Log viewer with auto-refresh ----
   window.__viewLog = async function(toolId) {
-    const result = await apiCall(`/api/tools/${toolId}/log?lines=50`);
-    const lines = result?.lines || [];
-    const logContent = lines.length ? lines.join('\n') : (getLang() === 'zh-CN' ? '暂无日志' : 'No log entries found.');
+    let logInterval = null;
     const modal = document.createElement('div');
     modal.className = 'modal-overlay active';
     modal.innerHTML = `
       <div class="modal glass" style="max-width:700px;width:90%;">
         <div class="modal-header">
           <h2>${toolId} ${t('tool_log')}</h2>
-          <button class="modal-close" onclick="this.closest('.modal-overlay').remove()">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-          </button>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <label class="checkbox-label" style="font-size:0.75rem;cursor:pointer;">
+              <input type="checkbox" id="logAutoRefresh" checked> ${getLang() === 'zh-CN' ? '自动刷新' : 'Auto-refresh'}
+            </label>
+            <button class="btn btn-sm btn-ghost" id="logRefreshBtn">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+            </button>
+            <button class="modal-close" onclick="this.closest('.modal-overlay').remove()">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
+          </div>
         </div>
-        <div class="log-modal-content">${escHtml(logContent)}</div>
+        <div class="log-modal-content" id="logContent">Loading...</div>
       </div>`;
+
+    async function refreshLog() {
+      const result = await apiCall(`/api/tools/${toolId}/log?lines=100`);
+      const lines = result?.lines || [];
+      const content = lines.length ? lines.join('\n') : (getLang() === 'zh-CN' ? '暂无日志' : 'No log entries found.');
+      const el = modal.querySelector('#logContent');
+      if (el) {
+        el.textContent = content;
+        el.scrollTop = el.scrollHeight;
+      }
+    }
+
     document.body.appendChild(modal);
-    modal.addEventListener('click', e => { if (e.target === modal) modal.remove(); });
+    await refreshLog();
+
+    // Auto-refresh every 3s if running
+    const state = toolStates[toolId] || {};
+    if (state.status === 'running') {
+      logInterval = setInterval(() => {
+        const cb = modal.querySelector('#logAutoRefresh');
+        if (cb && cb.checked) refreshLog();
+      }, 3000);
+    }
+
+    // Manual refresh button
+    const refreshBtn = modal.querySelector('#logRefreshBtn');
+    if (refreshBtn) refreshBtn.addEventListener('click', refreshLog);
+
+    // Cleanup on close
+    const closeBtn = modal.querySelector('.modal-close');
+    const origClose = closeBtn?.getAttribute('onclick');
+    if (closeBtn) {
+      closeBtn.removeAttribute('onclick');
+      closeBtn.addEventListener('click', () => {
+        if (logInterval) clearInterval(logInterval);
+        modal.remove();
+      });
+    }
+    modal.addEventListener('click', e => {
+      if (e.target === modal) {
+        if (logInterval) clearInterval(logInterval);
+        modal.remove();
+      }
+    });
   };
 
   // ---- Verify account from card ----

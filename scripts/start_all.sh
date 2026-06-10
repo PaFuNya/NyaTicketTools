@@ -41,7 +41,10 @@ LOGS_DIR="$PROJECT_ROOT/logs"
 
 BTB_DIR="$PROJECT_ROOT/tools/biliTickerBuy"
 BTG_DIR="$PROJECT_ROOT/tools/bili-ticket-go"
+BHYG_DIR="$PROJECT_ROOT/tools/BHYG"
+BTR_DIR="$PROJECT_ROOT/tools/bili_ticket_rush"
 BTB_CONFIG="$CONFIG_DIR/generated/biliTickerBuy/config.json"
+BHYG_CONFIG_DIR="$CONFIG_DIR/generated/BHYG"
 
 # ── Parse arguments ───────────────────────────────────────────
 
@@ -186,6 +189,26 @@ for t in data.get('tickets', []):
         break
 " 2>/dev/null || echo "")
 
+HAS_BHYG=$(python3 -c "
+import yaml
+with open('$TICKETS_FILE', 'r') as f:
+    data = yaml.safe_load(f)
+for t in data.get('tickets', []):
+    if t.get('enabled', False) and 'BHYG' in t.get('tools', []):
+        print('yes')
+        break
+" 2>/dev/null || echo "")
+
+HAS_BTR=$(python3 -c "
+import yaml
+with open('$TICKETS_FILE', 'r') as f:
+    data = yaml.safe_load(f)
+for t in data.get('tickets', []):
+    if t.get('enabled', False) and 'bili_ticket_rush' in t.get('tools', []):
+        print('yes')
+        break
+" 2>/dev/null || echo "")
+
 # ── Start biliTickerBuy ──────────────────────────────────────
 
 start_btb() {
@@ -286,6 +309,110 @@ start_btg() {
     info "  Web UI: http://$(hostname -I | awk '{print $1}'):${btg_port}"
 }
 
+# ── Start BHYG ─────────────────────────────────────────────
+
+start_bhyg() {
+    if ! should_start "BHYG"; then
+        return
+    fi
+
+    info "Starting BHYG..."
+
+    if [[ ! -d "$BHYG_DIR" ]]; then
+        err "BHYG not found at $BHYG_DIR"
+        warn "Run ./scripts/setup.sh first to clone tools."
+        return
+    fi
+
+    if [[ ! -f "$BHYG_DIR/main.py" ]]; then
+        err "BHYG main.py not found in $BHYG_DIR"
+        return
+    fi
+
+    local timestamp=$(date +%Y%m%d-%H%M%S)
+    local log_file="$LOGS_DIR/BHYG-${timestamp}.log"
+
+    if [[ "$DRY_RUN" == true ]]; then
+        info "[DRY RUN] Would start BHYG"
+        info "  Log: $log_file"
+        return
+    fi
+
+    # Start BHYG in background
+    cd "$BHYG_DIR"
+    python3 main.py \
+        > "$log_file" 2>&1 &
+    local pid=$!
+    cd "$PROJECT_ROOT"
+
+    log_pid "BHYG" "$pid"
+    info "  Log: $log_file"
+}
+
+# ── Start bili_ticket_rush ──────────────────────────────────
+
+start_btr() {
+    if ! should_start "bili_ticket_rush"; then
+        return
+    fi
+
+    info "Starting bili_ticket_rush..."
+
+    if [[ ! -d "$BTR_DIR" ]]; then
+        err "bili_ticket_rush not found at $BTR_DIR"
+        warn "Run ./scripts/setup.sh first to clone tools."
+        return
+    fi
+
+    # Find the binary (could be in target/release or root)
+    local binary=""
+    if [[ -f "$BTR_DIR/target/release/bili_ticket_rush" ]]; then
+        binary="$BTR_DIR/target/release/bili_ticket_rush"
+    elif [[ -f "$BTR_DIR/target/release/bili_ticket_rush.exe" ]]; then
+        binary="$BTR_DIR/target/release/bili_ticket_rush.exe"
+    elif [[ -f "$BTR_DIR/bili_ticket_rush" ]]; then
+        binary="$BTR_DIR/bili_ticket_rush"
+    elif [[ -f "$BTR_DIR/bili_ticket_rush.exe" ]]; then
+        binary="$BTR_DIR/bili_ticket_rush.exe"
+    else
+        # Try to find any matching binary
+        binary=$(find "$BTR_DIR" -name "bili_ticket_rush*" -type f -executable 2>/dev/null | head -1)
+    fi
+
+    if [[ -z "$binary" || ! -f "$binary" ]]; then
+        err "bili_ticket_rush binary not found."
+        warn "Build it: cd tools/bili_ticket_rush && cargo build --release"
+        warn "Or launch manually from the GUI."
+        return
+    fi
+
+    chmod +x "$binary" 2>/dev/null || true
+
+    local timestamp=$(date +%Y%m%d-%H%M%S)
+    local log_file="$LOGS_DIR/bili_ticket_rush-${timestamp}.log"
+
+    if [[ "$DRY_RUN" == true ]]; then
+        info "[DRY RUN] Would start bili_ticket_rush: $binary"
+        info "  Log: $log_file"
+        return
+    fi
+
+    # bili_ticket_rush is a GUI app - try to launch it
+    # On desktop environments this will open the GUI window
+    # On headless servers this will likely fail (expected)
+    "$binary" > "$log_file" 2>&1 &
+    local pid=$!
+
+    if kill -0 "$pid" 2>/dev/null; then
+        log_pid "bili_ticket_rush" "$pid"
+        info "  Log: $log_file"
+        info "  Note: bili_ticket_rush is a GUI app - requires desktop environment"
+    else
+        warn "bili_ticket_rush failed to start (no display server?)"
+        warn "Launch manually from desktop environment."
+    fi
+}
+
 # ── Main ──────────────────────────────────────────────────────
 
 started=0
@@ -305,6 +432,24 @@ if [[ -n "$HAS_BTG" ]]; then
 else
     if should_start "bili-ticket-go"; then
         warn "No enabled tickets use bili-ticket-go. Skipping."
+    fi
+fi
+
+if [[ -n "$HAS_BHYG" ]]; then
+    start_bhyg
+    ((started++))
+else
+    if should_start "BHYG"; then
+        warn "No enabled tickets use BHYG. Skipping."
+    fi
+fi
+
+if [[ -n "$HAS_BTR" ]]; then
+    start_btr
+    ((started++))
+else
+    if should_start "bili_ticket_rush"; then
+        warn "No enabled tickets use bili_ticket_rush. Skipping."
     fi
 fi
 

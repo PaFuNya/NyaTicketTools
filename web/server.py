@@ -29,6 +29,18 @@ LOGS_DIR = PROJECT_ROOT / "logs"
 PIDS_FILE = PROJECT_ROOT / ".pids"
 
 START_TIME = time.time()
+AUTH_TOKEN = None  # Set via --token CLI arg
+
+
+def check_auth(handler):
+    """Check Authorization header if token is set. Returns True if authorized."""
+    if AUTH_TOKEN is None:
+        return True
+    auth = handler.headers.get("Authorization", "")
+    if auth == f"Bearer {AUTH_TOKEN}":
+        return True
+    handler._json({"error": "Unauthorized", "message": "Missing or invalid token"}, 401)
+    return False
 
 
 def load_yaml(path):
@@ -161,6 +173,8 @@ class APIHandler(BaseHTTPRequestHandler):
         path = parsed.path.rstrip("/")
         qs = parse_qs(parsed.query)
 
+        if path.startswith("/api/") and not check_auth(self):
+            return
         if path == "/api/status":
             return self._handle_status()
         if path == "/api/accounts":
@@ -180,6 +194,8 @@ class APIHandler(BaseHTTPRequestHandler):
     def do_POST(self):
         path = urlparse(self.path).path.rstrip("/")
 
+        if not check_auth(self):
+            return
         if path == "/api/accounts":
             return self._handle_post_accounts()
         if path == "/api/tickets":
@@ -314,13 +330,21 @@ class APIHandler(BaseHTTPRequestHandler):
 
 
 def main():
+    global AUTH_TOKEN
     parser = argparse.ArgumentParser(description="NyaTicketTools Web Dashboard Server")
     parser.add_argument("--port", type=int, default=8090, help="Port to listen on")
     parser.add_argument("--host", default="0.0.0.0", help="Host to bind to")
+    parser.add_argument("--token", default=None, help="API auth token (optional, enables Bearer auth)")
     args = parser.parse_args()
+
+    AUTH_TOKEN = args.token
+    if AUTH_TOKEN:
+        print(f"API authentication enabled. Use header: Authorization: Bearer {AUTH_TOKEN}")
 
     server = HTTPServer((args.host, args.port), APIHandler)
     print(f"NyaTicketTools Dashboard running on http://{args.host}:{args.port}")
+    if args.host == "0.0.0.0" and not AUTH_TOKEN:
+        print("WARNING: Listening on all interfaces without auth. Use --token <secret> or --host 127.0.0.1")
     try:
         server.serve_forever()
     except KeyboardInterrupt:
