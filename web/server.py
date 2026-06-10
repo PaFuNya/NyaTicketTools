@@ -15,6 +15,8 @@ import time
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from pathlib import Path
 from urllib.parse import urlparse, parse_qs
+from urllib.request import urlopen, Request
+from urllib.error import URLError
 
 try:
     import yaml
@@ -206,6 +208,8 @@ class APIHandler(BaseHTTPRequestHandler):
             return self._handle_tool_stop()
         if path == "/api/config/generate":
             return self._handle_config_generate()
+        if path == "/api/notify":
+            return self._handle_notify()
 
         self._json({"error": "Not found"}, 404)
 
@@ -297,6 +301,65 @@ class APIHandler(BaseHTTPRequestHandler):
             self._json({"lines": tail, "file": str(log_file.name)})
         except Exception as e:
             self._json({"error": str(e)}, 500)
+
+    def _handle_notify(self):
+        """Send notification to webhook (Feishu, PushPlus, ServerChan, etc.)"""
+        body = self._read_body()
+        title = body.get("title", "NyaTicketTools")
+        message = body.get("body", "")
+        webhook_url = body.get("webhook", "")
+
+        if not webhook_url:
+            return self._json({"ok": False, "error": "No webhook URL"})
+
+        try:
+            # Detect webhook type and format payload
+            payload = None
+            headers = {"Content-Type": "application/json"}
+
+            if "feishu.cn" in webhook_url or "larksuite.com" in webhook_url:
+                # Feishu/Lark webhook
+                payload = {
+                    "msg_type": "text",
+                    "content": {"text": f"🎫 {title}\n{message}"},
+                }
+            elif "pushplus.plus" in webhook_url:
+                # PushPlus
+                payload = {
+                    "title": title,
+                    "content": message,
+                    "template": "txt",
+                }
+            elif "server酱" in webhook_url or "sctapi.ftqq.com" in webhook_url:
+                # ServerChan
+                payload = {
+                    "title": title,
+                    "desp": message,
+                }
+            elif "oapi.dingtalk.com" in webhook_url:
+                # DingTalk
+                payload = {
+                    "msgtype": "text",
+                    "text": {"content": f"🎫 {title}\n{message}"},
+                }
+            elif "hooks.slack.com" in webhook_url:
+                # Slack
+                payload = {
+                    "text": f"🎫 *{title}*\n{message}",
+                }
+            else:
+                # Generic: POST JSON with title+body
+                payload = {"title": title, "body": message, "text": f"{title}\n{message}"}
+
+            data = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+            req = Request(webhook_url, data=data, headers=headers, method="POST")
+            with urlopen(req, timeout=10) as resp:
+                status = resp.status
+            self._json({"ok": True, "status": status})
+        except URLError as e:
+            self._json({"ok": False, "error": str(e)})
+        except Exception as e:
+            self._json({"ok": False, "error": str(e)})
 
     def _handle_config_generate(self):
         script = SCRIPTS_DIR / "inject_config.py"

@@ -167,6 +167,22 @@ const I18N = {
     deploy_import_ok: '配置已导入并同步',
     deploy_import_err: '无效的 JSON 文件',
 
+    // Settings
+    settings_title: '通知与定时设置',
+    settings_sound: '倒计时声音提醒',
+    settings_sound_hint: '开售前关键节点播放提示音',
+    settings_browser_notify: '浏览器桌面通知',
+    settings_browser_notify_hint: '需要授予通知权限',
+    settings_webhook: 'Webhook 推送地址',
+    settings_webhook_hint: '开售提醒和工具启停通知将推送到此地址（支持飞书/Server酱/PushPlus/DingTalk/Slack）',
+    settings_pre_sale: '提前启动（秒）',
+    settings_pre_sale_hint: '开售前多少秒自动启动工具',
+    settings_auto_stop: '自动停止（分钟）',
+    settings_auto_stop_hint: '开售后多少分钟自动停止工具',
+    settings_save: '保存设置',
+    settings_saved: '设置已保存',
+    settings_test_sound: '测试声音',
+
     // Connection
     conn_connected: '已连接后端',
     conn_disconnected: '后端未连接',
@@ -347,6 +363,22 @@ const I18N = {
     deploy_export_ok: 'Backup exported',
     deploy_import_ok: 'Config imported & synced',
     deploy_import_err: 'Invalid JSON file',
+
+    // Settings
+    settings_title: 'Notification & Schedule',
+    settings_sound: 'Countdown sound alerts',
+    settings_sound_hint: 'Play beep at key countdown moments',
+    settings_browser_notify: 'Browser desktop notifications',
+    settings_browser_notify_hint: 'Requires notification permission',
+    settings_webhook: 'Webhook URL',
+    settings_webhook_hint: 'Sale alerts and tool status pushed here (Feishu/ServerChan/PushPlus/DingTalk/Slack)',
+    settings_pre_sale: 'Pre-sale start (seconds)',
+    settings_pre_sale_hint: 'Auto-start tools N seconds before sale',
+    settings_auto_stop: 'Auto-stop (minutes)',
+    settings_auto_stop_hint: 'Auto-stop tools N minutes after sale',
+    settings_save: 'Save Settings',
+    settings_saved: 'Settings saved',
+    settings_test_sound: 'Test Sound',
 
     // Connection
     conn_connected: 'Backend connected',

@@ -89,6 +89,77 @@
   let scheduledTimers = [];
   let currentTicketStep = 1;
 
+  // ---- Notification settings ----
+  const STORAGE_KEY_SETTINGS = 'nya_settings';
+  function loadSettings() {
+    try {
+      return JSON.parse(localStorage.getItem(STORAGE_KEY_SETTINGS)) || {};
+    } catch { return {}; }
+  }
+  function saveSettings(s) {
+    localStorage.setItem(STORAGE_KEY_SETTINGS, JSON.stringify(s));
+  }
+  let settings = {
+    soundEnabled: true,
+    browserNotify: true,
+    webhookUrl: '',
+    preSaleStartSeconds: 5,   // seconds before sale to auto-start
+    autoStopMinutes: 5,       // minutes after sale to auto-stop
+    countdownAlerts: [300, 120, 60, 30, 10],  // seconds before sale to alert
+    ...loadSettings(),
+  };
+
+  // ---- Sound system (Web Audio API, no external files) ----
+  let audioCtx = null;
+  function getAudioCtx() {
+    if (!audioCtx) {
+      audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    }
+    return audioCtx;
+  }
+
+  function playBeep(freq, duration, repeat) {
+    if (!settings.soundEnabled) return;
+    try {
+      const ctx = getAudioCtx();
+      for (let i = 0; i < (repeat || 1); i++) {
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.frequency.value = freq;
+        osc.type = 'sine';
+        gain.gain.setValueAtTime(0.3, ctx.currentTime + i * (duration + 0.1));
+        gain.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + i * (duration + 0.1) + duration);
+        osc.start(ctx.currentTime + i * (duration + 0.1));
+        osc.stop(ctx.currentTime + i * (duration + 0.1) + duration);
+      }
+    } catch (e) { /* ignore audio errors */ }
+  }
+
+  function playCountdownBeep(secondsLeft) {
+    if (secondsLeft <= 10) {
+      playBeep(880, 0.15, 1);  // high short beep
+    } else if (secondsLeft <= 30) {
+      playBeep(660, 0.2, 1);  // medium beep
+    } else {
+      playBeep(440, 0.3, 1);  // low beep
+    }
+  }
+
+  function playSaleStartSound() {
+    playBeep(1047, 0.2, 3);  // 3 high urgent beeps
+  }
+
+  // ---- Webhook notification via server ----
+  async function sendWebhook(title, body) {
+    if (!settings.webhookUrl) return;
+    await apiCall('/api/notify', {
+      method: 'POST',
+      body: JSON.stringify({ title, body, webhook: settings.webhookUrl }),
+    });
+  }
+
   // ---- DOM refs ----
   const $ = (sel, ctx) => (ctx || document).querySelector(sel);
   const $$ = (sel, ctx) => [...(ctx || document).querySelectorAll(sel)];
@@ -722,20 +793,22 @@
       const result = await apiCall('/api/tools/stop', {
         method: 'POST', body: JSON.stringify({ tool: toolId })
       });
-      if (result?.ok) {
-        state.status = 'idle';
-        showToast(t('tool_stopped', { name: toolId }), 'info');
-      } else {
-        showToast(t('tool_stopped', { name: toolId }), 'info');
-        state.status = 'idle';
-      }
+      state.status = 'idle';
+      const msg = t('tool_stopped', { name: toolId });
+      showToast(msg, 'info');
+      sendNotification('NyaTicketTools', msg);
+      sendWebhook('NyaTicketTools', msg);
     } else {
       const result = await apiCall('/api/tools/start', {
         method: 'POST', body: JSON.stringify({ tool: toolId })
       });
       state.status = 'running';
       state.lastRun = Date.now();
-      showToast(t('tool_started', { name: toolId }), 'success');
+      playBeep(880, 0.15, 1);
+      const msg = t('tool_started', { name: toolId });
+      showToast(msg, 'success');
+      sendNotification('NyaTicketTools', msg);
+      sendWebhook('NyaTicketTools', msg);
     }
     toolStates[toolId] = state;
     save(STORAGE_KEYS.toolStates, toolStates);
@@ -961,7 +1034,7 @@
   // ---- Start All button ----
   $('#startAllBtn').addEventListener('click', startAllTools);
 
-  // ---- Scheduled start/stop ----
+  // ---- Scheduled start/stop (configurable) ----
   function scheduleStartStop(ticketData) {
     scheduledTimers.forEach(t => clearTimeout(t));
     scheduledTimers = [];
@@ -969,27 +1042,55 @@
     const saleTime = new Date(ticketData.saleTime).getTime();
     const now = Date.now();
     if (saleTime <= now) return;
-    const startDelay = Math.max(0, saleTime - now - 5000);
+
+    const preSaleMs = (settings.preSaleStartSeconds || 5) * 1000;
+    const autoStopMs = (settings.autoStopMinutes || 5) * 60 * 1000;
+    const startDelay = Math.max(0, saleTime - now - preSaleMs);
+
+    // Auto-start timer
     const startTimer = setTimeout(async () => {
+      playSaleStartSound();
       showToast(t('tool_auto_starting'), 'info');
       sendNotification('NyaTicketTools', t('tool_auto_starting'));
+      sendWebhook('NyaTicketTools', t('tool_auto_starting'));
       for (const tool of TOOLS.filter(t => t.automatable)) {
         await window.__toggleTool(tool.id);
       }
     }, startDelay);
     scheduledTimers.push(startTimer);
+
+    // Auto-stop timer
     const stopTimer = setTimeout(async () => {
       showToast(t('tool_auto_stopping'), 'info');
+      sendNotification('NyaTicketTools', t('tool_auto_stopping'));
+      sendWebhook('NyaTicketTools', t('tool_auto_stopping'));
       const runningTools = Object.entries(toolStates).filter(([, s]) => s.status === 'running');
       for (const [id] of runningTools) {
         await window.__toggleTool(id);
       }
-    }, startDelay + 300000);
+    }, startDelay + autoStopMs);
     scheduledTimers.push(stopTimer);
+
+    // Pre-sale countdown alerts (5min, 2min, 1min, 30s, 10s)
+    for (const secs of settings.countdownAlerts || [300, 120, 60, 30, 10]) {
+      const alertDelay = Math.max(0, saleTime - now - secs * 1000);
+      if (alertDelay > 0) {
+        const alertTimer = setTimeout(() => {
+          playCountdownBeep(secs);
+          const msg = getLang() === 'zh-CN'
+            ? `距离开售还有 ${secs} 秒！`
+            : `${secs}s until sale!`;
+          sendNotification('NyaTicketTools', msg);
+          sendWebhook('NyaTicketTools', msg);
+        }, alertDelay);
+        scheduledTimers.push(alertTimer);
+      }
+    }
   }
 
   // ---- Browser notifications ----
   function sendNotification(title, body) {
+    if (!settings.browserNotify) return;
     if (!('Notification' in window)) return;
     if (Notification.permission === 'granted') {
       new Notification(title, { body });
@@ -1006,8 +1107,49 @@
     }
   }
 
-  // ---- Countdown timer ----
+  // ---- Settings UI ----
+  function renderSettings() {
+    const soundCb = $('#settingSound');
+    const notifyCb = $('#settingBrowserNotify');
+    const webhookInput = $('#settingWebhook');
+    const preSaleInput = $('#settingPreSale');
+    const autoStopInput = $('#settingAutoStop');
+    if (soundCb) soundCb.checked = settings.soundEnabled !== false;
+    if (notifyCb) notifyCb.checked = settings.browserNotify !== false;
+    if (webhookInput) webhookInput.value = settings.webhookUrl || '';
+    if (preSaleInput) preSaleInput.value = settings.preSaleStartSeconds || 5;
+    if (autoStopInput) autoStopInput.value = settings.autoStopMinutes || 5;
+  }
+
+  // Save settings
+  const saveSettingsBtn = $('#saveSettingsBtn');
+  if (saveSettingsBtn) {
+    saveSettingsBtn.addEventListener('click', () => {
+      settings.soundEnabled = ($('#settingSound') || {}).checked !== false;
+      settings.browserNotify = ($('#settingBrowserNotify') || {}).checked !== false;
+      settings.webhookUrl = (($('#settingWebhook') || {}).value || '').trim();
+      settings.preSaleStartSeconds = parseInt(($('#settingPreSale') || {}).value) || 5;
+      settings.autoStopMinutes = parseInt(($('#settingAutoStop') || {}).value) || 5;
+      saveSettings(settings);
+      // Re-schedule with new settings
+      if (tickets.length && tickets[0].saleTime) {
+        scheduleStartStop(tickets[0]);
+      }
+      showToast(t('settings_saved'), 'success');
+    });
+  }
+
+  // Test sound
+  const testSoundBtn = $('#testSoundBtn');
+  if (testSoundBtn) {
+    testSoundBtn.addEventListener('click', () => {
+      playBeep(660, 0.3, 2);
+    });
+  }
+
+  // ---- Countdown timer with sound + urgency levels ----
   let countdownNotified = false;
+  let lastCountdownSecond = -1;
   function updateCountdown() {
     const display = $('#countdownDisplay');
     if (!display) return;
@@ -1020,21 +1162,40 @@
     const target = new Date(saleTime).getTime();
     const now = Date.now();
     const diff = Math.max(0, target - now);
+    const statusBar = $('#statusBar');
 
     if (diff === 0) {
       display.textContent = t('dash_countdown_now');
-      const statusBar = $('#statusBar');
       if (statusBar) statusBar.classList.add('urgent');
       if (!countdownNotified) {
         countdownNotified = true;
+        playSaleStartSound();
         sendNotification('NyaTicketTools', t('dash_countdown_now'));
+        sendWebhook('NyaTicketTools', t('dash_countdown_now'));
       }
       return;
     }
 
-    if (diff <= 60000 && diff > 59000) sendNotification('NyaTicketTools', t('time_seconds', { n: 60 }));
-    if (diff <= 30000 && diff > 29000) sendNotification('NyaTicketTools', t('time_seconds', { n: 30 }));
-    if (diff <= 10000 && diff > 9000) sendNotification('NyaTicketTools', t('time_seconds', { n: 10 }));
+    const currentSecond = Math.floor(diff / 1000);
+
+    // Sound alerts at specific thresholds (only once per second)
+    if (currentSecond !== lastCountdownSecond) {
+      lastCountdownSecond = currentSecond;
+      const alertSeconds = settings.countdownAlerts || [300, 120, 60, 30, 10];
+      if (alertSeconds.includes(currentSecond)) {
+        playCountdownBeep(currentSecond);
+        const msg = getLang() === 'zh-CN'
+          ? `距离开售还有 ${currentSecond} 秒！`
+          : `${currentSecond}s until sale!`;
+        sendNotification('NyaTicketTools', msg);
+        sendWebhook('NyaTicketTools', msg);
+      }
+    }
+
+    // Urgency levels
+    if (diff <= 60000 && statusBar) {
+      statusBar.classList.add('urgent');
+    }
 
     const h = Math.floor(diff / 3600000);
     const m = Math.floor((diff % 3600000) / 60000);
@@ -1046,9 +1207,6 @@
     } else {
       display.textContent = t('time_hours', { h: String(h).padStart(2,'0'), m: String(m).padStart(2,'0'), s: String(s).padStart(2,'0') });
     }
-
-    const statusBar = $('#statusBar');
-    if (diff < 60000 && statusBar) statusBar.classList.add('urgent');
   }
   setInterval(updateCountdown, 1000);
 
@@ -1173,6 +1331,7 @@
     renderAccounts();
     populateAccountSelect();
     renderToolSelectCards();
+    renderSettings();
     if (tickets.length) populateTicketForm(tickets[0]);
   }
 

@@ -157,6 +157,56 @@
           </div>
         </details>
 
+        <!-- Notification settings -->
+        <details class="settings-section glass">
+          <summary class="section-title" style="cursor:pointer;user-select:none;">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16" style="vertical-align:middle;margin-right:6px;"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+            <span data-i18n="settings_title">通知与定时设置</span>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16" style="vertical-align:middle;margin-left:4px;"><polyline points="6 9 12 15 18 9"/></svg>
+          </summary>
+          <div class="settings-grid">
+            <div class="form-group">
+              <label class="checkbox-label">
+                <input type="checkbox" id="settingSound" checked>
+                <span data-i18n="settings_sound">倒计时声音提醒</span>
+              </label>
+              <span class="form-hint" data-i18n="settings_sound_hint">开售前关键节点播放提示音</span>
+            </div>
+            <div class="form-group">
+              <label class="checkbox-label">
+                <input type="checkbox" id="settingBrowserNotify" checked>
+                <span data-i18n="settings_browser_notify">浏览器桌面通知</span>
+              </label>
+              <span class="form-hint" data-i18n="settings_browser_notify_hint">需要授予通知权限</span>
+            </div>
+            <div class="form-group">
+              <label for="settingWebhook" data-i18n="settings_webhook">Webhook 推送地址</label>
+              <input type="url" id="settingWebhook" class="form-input" placeholder="飞书/Server酱/PushPlus/DingTalk/Slack">
+              <span class="form-hint" data-i18n="settings_webhook_hint">开售提醒和工具启停通知将推送到此地址</span>
+            </div>
+            <div class="form-grid">
+              <div class="form-group">
+                <label for="settingPreSale" data-i18n="settings_pre_sale">提前启动（秒）</label>
+                <input type="number" id="settingPreSale" class="form-input" value="5" min="1" max="60">
+                <span class="form-hint" data-i18n="settings_pre_sale_hint">开售前多少秒自动启动工具</span>
+              </div>
+              <div class="form-group">
+                <label for="settingAutoStop" data-i18n="settings_auto_stop">自动停止（分钟）</label>
+                <input type="number" id="settingAutoStop" class="form-input" value="5" min="1" max="60">
+                <span class="form-hint" data-i18n="settings_auto_stop_hint">开售后多少分钟自动停止工具</span>
+              </div>
+            </div>
+            <button class="btn btn-primary" id="saveSettingsBtn" style="align-self:flex-end;">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+              <span data-i18n="settings_save">保存设置</span>
+            </button>
+            <button class="btn btn-sm btn-ghost" id="testSoundBtn" style="align-self:flex-end;">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
+              <span data-i18n="settings_test_sound">测试声音</span>
+            </button>
+          </div>
+        </details>
+
         <!-- Onboarding -->
         <div class="empty-state onboarding" id="dashboardOnboarding" style="display:none;">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>

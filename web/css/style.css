@@ -941,6 +941,28 @@ body {
   color: var(--text-muted); font-size: 0.85rem;
 }
 
+/* --- Settings section --- */
+.settings-section {
+  margin-bottom: 24px; padding: 0;
+}
+.settings-section summary {
+  list-style: none;
+  display: flex; align-items: center; gap: 6px;
+  padding: 16px 20px;
+}
+.settings-section summary::-webkit-details-marker { display: none; }
+.settings-section[open] summary svg:last-child { transform: rotate(180deg); }
+.settings-section summary svg:last-child { transition: transform 0.2s; }
+.settings-grid {
+  display: flex; flex-direction: column; gap: 14px;
+  padding: 0 20px 20px;
+}
+.settings-grid .form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 14px;
+}
+
 /* --- All tools (collapsed) --- */
 .all-tools-section {
   margin-bottom: 24px;
