@@ -1,4 +1,4 @@
-# Task: Build NyaTickerTools Web Management Dashboard
+# Task: Build NyaTicketTools Web Management Dashboard
 
 ## Overview
 Build a beautiful, production-ready single-page web dashboard for managing Bilibili ticket-grabbing tools. This is a static HTML + CSS + JS app (no build tools needed) that will be served by a simple Python HTTP server.
@@ -46,7 +46,7 @@ Each tool gets a card showing:
 - Loading: skeleton screens with shimmer
 
 ## Technical Requirements
-- **Single HTML file** at `/opt/NyaTickerTools/web/index.html`
+- **Single HTML file** at `/opt/NyaTicketTools/web/index.html`
 - **Inline CSS** in `<style>` tags (or link to style.css if too large)
 - **Inline JS** in `<script>` tags (or link to app.js)
 - **GSAP via CDN**: `https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js`
@@ -84,7 +84,7 @@ web/
 - Make it depend on a backend server to function
 
 ## Deliverables
-1. Complete HTML/CSS/JS files in `/opt/NyaTickerTools/web/`
+1. Complete HTML/CSS/JS files in `/opt/NyaTicketTools/web/`
 2. The app should work by opening `index.html` directly in a browser
 3. All animations should use GSAP
-4. Test by running: `cd /opt/NyaTickerTools/web && python3 -m http.server 8080`
+4. Test by running: `cd /opt/NyaTicketTools/web && python3 -m http.server 8080`
