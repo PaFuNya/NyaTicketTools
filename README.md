@@ -16,51 +16,58 @@
 
 ## 简介
 
-NyaTicketTools 是一个**单引擎、多机器集群抢票系统**。以 [biliTickerBuy](https://github.com/mikumifa/biliTickerBuy) 为核心引擎，通过 SSH 管理多台机器上的抢票进程，提供统一的 Web Dashboard 实时监控。
+NyaTicketTools 是一个**主控端 / 被控端 集群抢票系统**。以 [biliTickerBuy](https://github.com/mikumifa/biliTickerBuy) 为核心引擎，主控端负责扫码登录和配置管理，被控端（VPS）无浏览器纯 CLI 执行抢票，Dashboard 实时监控全集群状态。
 
 ### 核心理念
 
-> **一个引擎 × 多台机器 × 多账号 = 最大抢票概率**
+> **主控端配一次 × 多台被控端并行抢 × 多账号 = 最大抢票概率**
+
+### 架构
 
 ```
-                 你的电脑 (大脑)
-                 ┌──────────────────────┐
-                 │  Web Dashboard       │
-                 │  localhost:8090      │
-                 │                      │
-                 │  ./nyaticket start   │ ← 一条命令
-                 └──┬──────┬──────┬─────┘
-                    │      │      │
-              SSH   │      │      │  SSH
-        ┌───────────┘      │      └───────────┐
-        ▼                  ▼                  ▼
-  ┌──────────┐      ┌──────────┐      ┌──────────┐
-  │ 上海 VPS  │      │ 杭州 VPS  │      │  本地机器  │
-  │ <5ms延迟 │      │ <5ms延迟 │      │  ~30ms    │
-  │ 账号 A   │      │ 账号 B   │      │ 账号 C   │
-  └────┬─────┘      └────┬─────┘      └────┬─────┘
-       │                 │                 │
-       └────────┬────────┴────────┬────────┘
-                │                 │
-         POST createV2      POST createV2
-                │                 │
-         ┌──────▼─────────────────▼──────┐
-         │       Bilibili API (上海)      │
-         └───────────────────────────────┘
+主控端 (你的电脑, 有浏览器)
+┌─────────────────────────────────────────────┐
+│  localhost:8090  Dashboard                  │
+│  ├─ 扫码登录 → 获取 Cookie → 验证            │
+│  ├─ 填写票务 → 存 YAML                       │
+│  └─ 点「集群开始抢票」                        │
+│                                             │
+│  web/server.py   API + SSE 实时推送          │
+│  core/cluster.py  SSH + HTTP 双重控制        │
+└──────┬──────────┬──────────┬────────────────┘
+       │          │          │
+  SSH  │    SSH   │    SSH   │  rsync 配置
+  HTTP │    HTTP  │    HTTP  │  启动 worker
+       │          │          │
+┌──────▼────┐ ┌───▼──────┐ ┌▼──────────────┐
+│ 被控端 VPS │ │ 被控端 VPS │ │ 被控端 VPS     │
+│ (无浏览器) │ │ (无浏览器) │ │ (无浏览器)     │
+│           │ │           │ │               │
+│ worker.py │ │ worker.py │ │ worker.py     │
+│ :8800     │ │ :8800     │ │ :8800         │
+│   ↓       │ │   ↓       │ │   ↓           │
+│ import    │ │ import    │ │ import        │
+│ biliTicke │ │ biliTicke │ │ biliTicke     │
+│ rBuy      │ │ rBuy      │ │ rBuy          │
+│   ↓       │ │   ↓       │ │   ↓           │
+│ B站 API   │ │ B站 API   │ │ B站 API       │
+└───────────┘ └───────────┘ └───────────────┘
 ```
 
 ---
 
 ## 功能特性
 
-- **单引擎策略** — 只用 biliTickerBuy，不搞「多工具同时跑」的伪需求。多机器的不同 IP 才是提升概率的关键
-- **集群管理** — SSH + rsync 一键部署配置到所有节点，统一启停
-- **实时监控** — SSE (Server-Sent Events) 推送引擎状态到 Dashboard，不需要刷新
-- **定时自动化** — 设定开售时间后，系统提前自动启动工具，开售后自动停止
+- **主控端 / 被控端 架构** — 主控端浏览器扫码登录、配置票务；被控端纯 CLI 抢票，不需要浏览器
+- **扫码登录** — 浏览器点「扫码登录」→ B站 App 扫码 → Cookie 自动解析填入
+- **Cookie 验证** — 调 B站 API 实时验证 Cookie 有效性
+- **多账号并行** — 所有账号同时抢，任一成功自动停止其余
+- **集群管理** — SSH + rsync 部署配置，HTTP 控制被控端 worker，一键全集群启停
+- **实时监控** — SSE 推送每台被控端状态，不需要刷新
+- **定时自动化** — 设定开售时间，系统提前自动启动，开售后自动停止
 - **通知系统** — 声音提醒 + 浏览器桌面通知 + Webhook (飞书/钉钉/PushPlus/Server酱)
-- **Cookie 管理** — 一键粘贴自动解析，点击验证 B站 登录状态
 - **中英双语** — 自动检测浏览器语言，支持手动切换
-- **配置同步** — Web 表单修改后自动同步到 YAML 配置文件和所有节点
+- **配置同步** — Web 表单修改后自动同步到 YAML，rsync 到所有被控端
 
 ---
 
@@ -172,16 +179,67 @@ machines:
 ## CLI 命令
 
 ```bash
-nyaticket setup                   # 安装 biliTickerBuy
-nyaticket config [--dry-run]      # 生成 biliTickerBuy 配置
-nyaticket start                   # 启动 Dashboard + 自动生成配置
-nyaticket stop                    # 停止所有进程
-nyaticket deploy <机器名|all>      # 部署到远程机器
-nyaticket dashboard               # 仅启动 Dashboard
-nyaticket status                  # 健康检查
-nyaticket logs                    # 查看日志
-nyaticket clean                   # 清理
+nyaticket setup                          # 安装 biliTickerBuy
+nyaticket config [--dry-run]             # 生成 biliTickerBuy 配置
+nyaticket start                          # 启动 Dashboard
+nyaticket stop                           # 停止所有进程
+nyaticket deploy all                     # rsync 配置到所有被控端
+nyaticket dashboard                      # 仅启动 Dashboard (端口 8090)
+nyaticket status                         # 健康检查
+nyaticket logs                           # 查看日志
+nyaticket clean                          # 清理
 ```
+
+## 项目结构
+
+```
+NyaTicketTools/
+├── core/                        # 核心引擎 (Python)
+│   ├── engine.py                # 多账号抢票引擎 (import biliTickerBuy)
+│   ├── cluster.py               # 集群管理 (SSH + HTTP 双重控制)
+│   └── worker.py                # 被控端 agent (:8800 HTTP API)
+├── web/                         # Web 面板
+│   ├── server.py                # 主控端 API + SSE + 静态文件
+│   ├── index.html               # SPA (中英双语)
+│   ├── css/style.css            # 暗色玻璃拟态主题
+│   └── js/
+│       ├── app.js               # 前端逻辑 (SSE + QR登录 + 集群)
+│       └── i18n.js              # 国际化 (~100 条文案)
+├── scripts/
+│   ├── setup.sh                 # 安装 biliTickerBuy
+│   ├── inject_config.py         # YAML → JSON 配置生成
+│   ├── start_all.sh             # 启动 Dashboard
+│   ├── stop_all.sh              # 停止所有进程
+│   └── deploy.sh                # rsync 多机部署
+├── config/
+│   ├── sample_accounts.yaml
+│   ├── sample_tickets.yaml
+│   └── sample_machines.yaml
+├── tools/biliTickerBuy/         # 抢票引擎 (git-ignored)
+├── nyaticket                    # CLI 统一入口
+└── README.md
+```
+
+## 集群部署流程
+
+```bash
+# 【被控端 VPS 上 — 只需做一次】
+pip install bilitickerbuy pyyaml
+# 确保 SSH 能从主控端免密登录
+
+# 【主控端】
+vim config/machines.yaml    # 填写 VPS IP
+vim config/accounts.yaml    # 或通过 Dashboard 扫码登录
+vim config/tickets.yaml     # 或通过 Dashboard 填写票务
+
+./nyaticket start           # 启动 Dashboard
+
+# Dashboard → 多机部署 → 点「集群开始抢票」
+# 自动完成：
+#   1. rsync 配置到所有被控端
+#   2. SSH 启动所有被控端的 worker agent (:8800)
+#   3. HTTP 通知所有 worker 开始抢票
+#   4. SSE 实时推送每台被控端状态
 
 ---
 

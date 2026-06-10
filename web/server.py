@@ -129,7 +129,7 @@ def broadcast_sse(event_type, data):
 
 
 def init_engine():
-    """Initialize the local buy engine with event broadcasting."""
+    """Initialize the multi-account buy engine with SSE event broadcasting."""
     try:
         from core.engine import get_engine
         engine = get_engine()
@@ -138,6 +138,41 @@ def init_engine():
     except Exception as e:
         print(f"Warning: Engine not available: {e}")
         return None
+
+
+def _build_cluster_accounts():
+    """Build accounts list from local YAML configs for cluster deployment."""
+    accounts = load_yaml(CONFIG_DIR / "accounts.yaml").get("accounts", [])
+    result = []
+    for a in accounts:
+        cookie_str = a.get("cookie", "")
+        cookies = []
+        for part in cookie_str.split(";"):
+            part = part.strip()
+            if "=" in part:
+                k, v = part.split("=", 1)
+                cookies.append({"name": k.strip(), "value": v.strip(), "domain": ".bilibili.com"})
+        if cookies:
+            result.append({"name": a.get("name", "?"), "cookies": cookies})
+    return result
+
+
+def _build_cluster_target():
+    """Build target dict from local tickets.yaml for cluster deployment."""
+    tickets = load_yaml(CONFIG_DIR / "tickets.yaml").get("tickets", [])
+    for t in tickets:
+        if t.get("enabled", False):
+            return {
+                "project_id": int(t.get("project_id", 0)),
+                "screen_id": int(t.get("screen_id", 0)),
+                "sku_id": int(t.get("sku_id", 0)),
+                "pay_money": int(t.get("pay_money", 0)),
+                "count": int(t.get("quantity", 1)),
+                "sale_start": t.get("sale_start"),
+                "is_hot_project": t.get("is_hot_project", False),
+                "detail": t.get("name", "Ticket"),
+            }
+    return {}
 
 
 class APIHandler(BaseHTTPRequestHandler):
@@ -225,6 +260,11 @@ class APIHandler(BaseHTTPRequestHandler):
             return self._handle_get_nodes()
         if path == "/api/events":
             return self._handle_sse()
+        if path == "/api/user/info":
+            return self._handle_get_user_info()
+        if path.startswith("/api/project/"):
+            project_id = path.split("/")[-1]
+            return self._handle_get_project(project_id)
         if path.startswith("/api/tools/") and path.endswith("/log"):
             tool = path.split("/")[3]
             lines = int(qs.get("lines", ["100"])[0])
@@ -250,6 +290,16 @@ class APIHandler(BaseHTTPRequestHandler):
             return self._handle_config_generate()
         if path == "/api/notify":
             return self._handle_notify()
+        if path == "/api/qr-login/start":
+            return self._handle_qr_login_start()
+        if path == "/api/qr-login/poll":
+            return self._handle_qr_login_poll()
+        if path == "/api/accounts/verify":
+            return self._handle_account_verify()
+        if path == "/api/buy/start":
+            return self._handle_buy_start()
+        if path == "/api/buy/stop":
+            return self._handle_buy_stop()
         if path == "/api/cluster/start":
             return self._handle_cluster_start()
         if path == "/api/cluster/stop":
@@ -308,19 +358,14 @@ class APIHandler(BaseHTTPRequestHandler):
         self._json({"ok": True})
 
     def _handle_tool_start(self):
-        """Start biliTickerBuy engine."""
+        """Start biliTickerBuy via multi-account engine."""
         body = self._read_body()
         tool = body.get("tool", "")
 
         if tool == "biliTickerBuy":
-            engine = init_engine()
-            if engine:
-                result = engine.start()
-                if result.get("ok"):
-                    broadcast_sse("tool_started", {"tool": tool, "status": engine.status})
-                return self._json(result)
+            return self._handle_buy_start()
 
-        # Fallback: use start_all.sh
+        # Fallback
         script = SCRIPTS_DIR / "start_all.sh"
         if not script.exists():
             return self._json({"ok": False, "error": "start_all.sh not found"}, 500)
@@ -344,12 +389,7 @@ class APIHandler(BaseHTTPRequestHandler):
         tool = body.get("tool", "")
 
         if tool == "biliTickerBuy":
-            engine = init_engine()
-            if engine:
-                result = engine.stop()
-                if result.get("ok"):
-                    broadcast_sse("tool_stopped", {"tool": tool})
-                return self._json(result)
+            return self._handle_buy_stop()
 
         result = kill_tool(tool)
         broadcast_sse("tool_stopped", {"tool": tool})
@@ -453,6 +493,118 @@ class APIHandler(BaseHTTPRequestHandler):
             "uptime": uptime_str(),
         })
 
+    # ── QR Login ──────────────────────────────────────────────
+
+    def _handle_qr_login_start(self):
+        """Start QR code login flow."""
+        from core.engine import MultiBuyEngine
+        result = MultiBuyEngine.start_qr_login(qr_image_path=False)
+        self._json(result)
+
+    def _handle_qr_login_poll(self):
+        """Poll QR login status."""
+        body = self._read_body()
+        qrcode_key = body.get("qrcode_key", "")
+        timeout = body.get("timeout", 120)
+        if not qrcode_key:
+            return self._json({"ok": False, "error": "Missing qrcode_key"})
+        from core.engine import MultiBuyEngine
+        result = MultiBuyEngine.poll_qr_login(qrcode_key, timeout=timeout)
+        if result.get("ok") and result.get("cookies"):
+            result["cookie_string"] = "; ".join(
+                f"{c['name']}={c['value']}" for c in result["cookies"]
+                if c.get("name") in ("SESSDATA", "bili_jct", "DedeUserID")
+            )
+        self._json(result)
+
+    # ── Account ───────────────────────────────────────────────
+
+    def _handle_account_verify(self):
+        """Verify account cookies against Bilibili API."""
+        body = self._read_body()
+        cookies = body.get("cookies", [])
+        from core.engine import MultiBuyEngine
+        ok, username, error = MultiBuyEngine.verify_cookies(cookies)
+        self._json({"ok": ok, "username": username, "error": error})
+
+    def _handle_get_user_info(self):
+        """Get user buyers and addresses."""
+        cookies = None
+        # Try to parse cookies from query params
+        parsed = urlparse(self.path)
+        qs = parse_qs(parsed.query)
+        cookie_str = qs.get("cookie", [None])[0]
+        if cookie_str:
+            cookies = []
+            for part in cookie_str.split(";"):
+                part = part.strip()
+                if "=" in part:
+                    k, v = part.split("=", 1)
+                    cookies.append({"name": k.strip(), "value": v.strip(), "domain": ".bilibili.com"})
+        if not cookies:
+            return self._json({"ok": False, "error": "No cookies provided. Use ?cookie=SESSDATA=..."})
+        from core.engine import MultiBuyEngine
+        result = MultiBuyEngine.fetch_user_info(cookies)
+        self._json(result)
+
+    # ── Project ───────────────────────────────────────────────
+
+    def _handle_get_project(self, project_id):
+        """Get project detail."""
+        from core.engine import MultiBuyEngine
+        result = MultiBuyEngine.fetch_project_detail(project_id)
+        self._json(result)
+
+    # ── Multi-Account Buy ─────────────────────────────────────
+
+    def _handle_buy_start(self):
+        """Start multi-account buy engine."""
+        body = self._read_body()
+        accounts_data = body.get("accounts", [])
+        target = body.get("target", {})
+        interval = body.get("interval", 100)
+
+        if not accounts_data:
+            return self._json({"ok": False, "error": "No accounts provided"})
+        if not target.get("project_id"):
+            return self._json({"ok": False, "error": "Missing project_id in target"})
+
+        from core.engine import reset_engine, get_engine
+        reset_engine()
+        engine = get_engine()
+        engine.on_event = lambda e: broadcast_sse(e["type"], e)
+
+        engine.set_target(
+            project_id=target["project_id"],
+            screen_id=target.get("screen_id", 0),
+            sku_id=target.get("sku_id", 0),
+            pay_money=target.get("pay_money", 0),
+            count=target.get("count", 1),
+            sale_start=target.get("sale_start"),
+            is_hot_project=target.get("is_hot_project", False),
+            detail=target.get("detail"),
+        )
+
+        for acc in accounts_data:
+            engine.add_account(
+                name=acc.get("name", "unknown"),
+                cookies=acc.get("cookies", []),
+                buyer_info=acc.get("buyer_info", []),
+                deliver_info=acc.get("deliver_info", {}),
+            )
+
+        broadcast_sse("buy_started", {"accounts": len(accounts_data), "target": target})
+        result = engine.start_all(interval=interval)
+        self._json(result)
+
+    def _handle_buy_stop(self):
+        """Stop multi-account buy engine."""
+        from core.engine import get_engine
+        engine = get_engine()
+        engine.stop_all()
+        broadcast_sse("buy_stopped", {"message": "Buy stopped"})
+        self._json({"ok": True})
+
     def _handle_sse(self):
         """Server-Sent Events endpoint for real-time engine status."""
         self.send_response(200)
@@ -473,45 +625,55 @@ class APIHandler(BaseHTTPRequestHandler):
             SSE_CLIENTS.discard(self)
 
     def _handle_get_nodes(self):
-        """Get cluster node status."""
+        """Get cluster node status with live polling."""
         try:
             from core.cluster import get_cluster
             cluster = get_cluster()
+            cluster.check_all()
             nodes = cluster.status_all()
             self._json({"ok": True, "nodes": nodes})
         except Exception as e:
             self._json({"ok": False, "error": str(e), "nodes": {}})
 
     def _handle_cluster_start(self):
-        """Start engines on all cluster nodes."""
+        """Deploy configs, start workers, and start buying on all nodes."""
         try:
             from core.cluster import get_cluster
             cluster = get_cluster()
-            results = cluster.start_all()
+            cluster.check_all()
+
+            # Build accounts/target from local config
+            accounts_data = _build_cluster_accounts()
+            target_data = _build_cluster_target()
+
+            results = cluster.full_deploy_and_start(accounts=accounts_data, target=target_data)
             broadcast_sse("cluster_start", {"results": results})
             self._json({"ok": True, "results": results})
         except Exception as e:
             self._json({"ok": False, "error": str(e)})
 
     def _handle_cluster_stop(self):
-        """Stop engines on all cluster nodes."""
+        """Stop buying and workers on all nodes."""
         try:
             from core.cluster import get_cluster
             cluster = get_cluster()
-            results = cluster.stop_all()
-            broadcast_sse("cluster_stop", {"results": results})
-            self._json({"ok": True, "results": results})
+            stop_results = cluster.stop_buy_all()
+            worker_results = cluster.stop_workers()
+            broadcast_sse("cluster_stop", {"stop": stop_results, "workers": worker_results})
+            self._json({"ok": True, "stop": stop_results, "workers": worker_results})
         except Exception as e:
             self._json({"ok": False, "error": str(e)})
 
     def _handle_cluster_deploy(self):
-        """Deploy configs to all cluster nodes."""
+        """Deploy configs to all nodes and start workers."""
         try:
             from core.cluster import get_cluster
             cluster = get_cluster()
-            results = cluster.deploy_configs("all")
-            broadcast_sse("cluster_deploy", {"results": results})
-            self._json({"ok": all(r.get("ok") for r in results.values()), "results": results})
+            deploy = cluster.deploy_all()
+            time.sleep(2)
+            workers = cluster.start_workers()
+            broadcast_sse("cluster_deploy", {"deploy": deploy, "workers": workers})
+            self._json({"ok": True, "deploy": deploy, "workers": workers})
         except Exception as e:
             self._json({"ok": False, "error": str(e)})
 

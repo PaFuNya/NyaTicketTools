@@ -673,6 +673,72 @@
   // Verify button
   $('#verifyCookieBtn').addEventListener('click', verifyCookie);
 
+  // QR login
+  const qrLoginBtn = $('#qrLoginBtn');
+  const qrStatus = $('#qrStatus');
+  if (qrLoginBtn) {
+    qrLoginBtn.addEventListener('click', async () => {
+      qrLoginBtn.disabled = true;
+      qrLoginBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/></svg> ${t('account_verifying')}`;
+      qrStatus.style.display = 'block';
+      qrStatus.textContent = t('account_qr_scanning');
+
+      try {
+        const startResult = await apiCall('/api/qr-login/start', { method: 'POST', body: JSON.stringify({}) });
+        if (!startResult?.ok) {
+          qrStatus.textContent = startResult?.error || 'QR登录启动失败';
+          qrLoginBtn.disabled = false;
+          qrLoginBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><rect x="7" y="7" width="10" height="10"/></svg> ${t('account_qr_login')}`;
+          return;
+        }
+
+        const qrcodeKey = startResult.qrcode_key;
+        // Display QR URL as text (user can copy or scan)
+        qrStatus.innerHTML = `${t('account_qr_scanning')}<br><small style="opacity:0.7;">${startResult.login_url || ''}</small>`;
+
+        // Poll for result
+        let pollCount = 0;
+        const pollInterval = setInterval(async () => {
+          pollCount++;
+          const pollResult = await apiCall('/api/qr-login/poll', {
+            method: 'POST', body: JSON.stringify({ qrcode_key: qrcodeKey, timeout: 3 })
+          });
+
+          if (pollResult?.ok && pollResult?.status === 'confirmed') {
+            clearInterval(pollInterval);
+            qrStatus.textContent = t('account_qr_success', { name: pollResult.username || '' });
+
+            // Fill form with cookies
+            if (pollResult.cookie_string) {
+              $('#accCookiePaste').value = pollResult.cookie_string;
+              const parsed = parseCookieString(pollResult.cookie_string);
+              if (parsed.sessdata) $('#accSessdata').value = parsed.sessdata;
+              if (parsed.biliJct) $('#accBiliJct').value = parsed.biliJct;
+              if (parsed.dedeUserId) $('#accDedeUserId').value = parsed.dedeUserId;
+            }
+            if (pollResult.username && (!$('#accName').value || $('#accName').value === '主号')) {
+              $('#accName').value = pollResult.username;
+            }
+
+            showToast(t('account_qr_success', { name: pollResult.username || 'OK' }), 'success');
+            qrLoginBtn.disabled = false;
+            qrLoginBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><rect x="7" y="7" width="10" height="10"/></svg> ${t('account_qr_login')}`;
+
+          } else if (pollResult?.status === 'timeout' || pollCount > 40) {
+            clearInterval(pollInterval);
+            qrStatus.textContent = t('account_qr_fail');
+            qrLoginBtn.disabled = false;
+            qrLoginBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><rect x="7" y="7" width="10" height="10"/></svg> ${t('account_qr_login')}`;
+          }
+        }, 2000);
+      } catch (err) {
+        qrStatus.textContent = t('account_qr_fail');
+        qrLoginBtn.disabled = false;
+        qrLoginBtn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><rect x="7" y="7" width="10" height="10"/></svg> ${t('account_qr_login')}`;
+      }
+    });
+  }
+
   // Save account
   $('#accountForm').addEventListener('submit', e => {
     e.preventDefault();
@@ -741,21 +807,67 @@
   async function startAllTools() {
     const runningCount = Object.values(toolStates).filter(s => s.status === 'running').length;
     if (runningCount > 0) {
-      // Stop all
-      for (const tool of TOOLS) {
-        const state = toolStates[tool.id] || {};
-        if (state.status === 'running') {
-          await window.__toggleTool(tool.id);
-        }
+      // Stop all via buy/stop
+      await apiCall('/api/buy/stop', { method: 'POST' });
+      for (const key of Object.keys(toolStates)) {
+        toolStates[key] = { status: 'idle', lastRun: null };
       }
+      save(STORAGE_KEYS.toolStates, toolStates);
+      showToast(t('tool_auto_stopping'), 'info');
+      renderAll();
     } else {
-      // Start all automatable
-      showToast(t('tool_auto_starting'), 'info');
-      for (const tool of TOOLS) {
-        if (tool.automatable) {
-          await window.__toggleTool(tool.id);
-        }
+      // Start multi-account buy
+      await syncAccountsToYAML();
+      await syncTicketsToYAML();
+
+      // Build accounts list for API
+      const buyAccounts = accounts.filter(a => a.sessdata || a.cookie).map(a => {
+        const cookies = [];
+        if (a.sessdata) cookies.push({ name: 'SESSDATA', value: a.sessdata, domain: '.bilibili.com' });
+        if (a.biliJct) cookies.push({ name: 'bili_jct', value: a.biliJct, domain: '.bilibili.com' });
+        if (a.dedeUserId) cookies.push({ name: 'DedeUserID', value: a.dedeUserId, domain: '.bilibili.com' });
+        return { name: a.name, cookies };
+      });
+
+      if (!buyAccounts.length) {
+        showToast(t('account_empty_desc'), 'error');
+        return;
       }
+      if (!tickets.length || !tickets[0].projectId) {
+        showToast(t('dash_tickets_warn'), 'error');
+        return;
+      }
+
+      const tkt = tickets[0];
+      const target = {
+        project_id: tkt.projectId || tkt.project_id,
+        screen_id: tkt.screenId || tkt.screen_id,
+        sku_id: tkt.skuId || tkt.sku_id,
+        pay_money: parseInt(tkt.payMoney) || 0,
+        count: parseInt(tkt.count) || 1,
+        sale_start: tkt.saleTime || tkt.sale_start,
+        is_hot_project: tkt.isHotProject || false,
+        detail: tkt.name || 'Ticket',
+      };
+
+      const result = await apiCall('/api/buy/start', {
+        method: 'POST',
+        body: JSON.stringify({ accounts: buyAccounts, target, interval: 100 }),
+      });
+
+      if (result?.ok) {
+        for (const tool of TOOLS) {
+          toolStates[tool.id] = { status: 'running', lastRun: Date.now() };
+        }
+        save(STORAGE_KEYS.toolStates, toolStates);
+        playBeep(880, 0.15, 1);
+        showToast(t('tool_auto_starting'), 'success');
+        sendNotification('NyaTicketTools', t('tool_auto_starting'));
+        sendWebhook('NyaTicketTools', t('tool_auto_starting'));
+      } else {
+        showToast(result?.error || '启动失败', 'error');
+      }
+      renderAll();
     }
   }
 
