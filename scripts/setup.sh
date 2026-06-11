@@ -1,332 +1,196 @@
 #!/usr/bin/env bash
 # =============================================================
-# NyaTickerTools - Initial Setup Script
+# NyaTicketTools - Setup Script
 # =============================================================
-# Sets up a new machine for NyaTickerTools:
-#   - Creates tools/ directory
-#   - Clones all 4 tool repos
-#   - Installs biliTickerBuy and its Python dependencies
+# One-command setup: clone biliTickerBuy, install deps, init configs.
 #
 # Usage:
-#   ./scripts/setup.sh           # Full setup
-#   ./scripts/setup.sh --quick   # Quick: only install deps (skip clones)
+#   ./nyaticket setup            # Full setup
+#   ./nyaticket setup --quick    # Only install deps, skip git clone
 # =============================================================
 
 set -euo pipefail
 
 # ── Colors ────────────────────────────────────────────────────
+RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[0;33m'
+BLUE='\033[0;34m'; MAGENTA='\033[0;35m'; CYAN='\033[0;36m'
+BOLD='\033[1m'; NC='\033[0m'
 
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-YELLOW='\033[0;33m'
-BLUE='\033[0;34m'
-MAGENTA='\033[0;35m'
-CYAN='\033[0;36m'
-BOLD='\033[1m'
-NC='\033[0m'
-
-info()  { echo -e "${BLUE}ℹ${NC}  $*"; }
+info()  { echo -e "${BLUE}▶${NC}  $*"; }
 ok()    { echo -e "${GREEN}✓${NC}  $*"; }
 warn()  { echo -e "${YELLOW}⚠${NC}  $*"; }
 err()   { echo -e "${RED}✗${NC}  $*"; }
 section() {
     echo
-    echo -e "${CYAN}────────────────────────────────────────────${NC}"
-    echo -e "${CYAN}  $*${NC}"
-    echo -e "${CYAN}────────────────────────────────────────────${NC}"
+    echo -e "${CYAN}── $* ──${NC}"
 }
 
 # ── Paths ─────────────────────────────────────────────────────
-
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 TOOLS_DIR="$PROJECT_ROOT/tools"
-
-# Tool repos
+CONFIG_DIR="$PROJECT_ROOT/config"
+BTB_DIR="$TOOLS_DIR/biliTickerBuy"
 BTB_REPO="https://github.com/mikumifa/biliTickerBuy.git"
 
 # ── Parse arguments ───────────────────────────────────────────
-
 QUICK_MODE=false
-STATUS_MODE=false
 while [[ $# -gt 0 ]]; do
     case "$1" in
-        --quick)
-            QUICK_MODE=true
-            shift
-            ;;
-        --status)
-            STATUS_MODE=true
-            shift
-            ;;
+        --quick) QUICK_MODE=true; shift ;;
         -h|--help)
-            echo "Usage: $0 [--quick] [--status]"
-            echo ""
-            echo "Options:"
-            echo "  --quick    Quick mode: only install deps, skip git clones"
-            echo "  --status   Check tool versions and update availability"
-            echo "  -h         Show this help"
-            exit 0
-            ;;
-        *)
-            err "Unknown argument: $1"
-            exit 1
-            ;;
+            echo "Usage: $0 [--quick]"
+            echo "  --quick  Skip git clone, only install deps"
+            exit 0 ;;
+        *) err "Unknown: $1"; exit 1 ;;
     esac
 done
 
-# ── Status check mode ─────────────────────────────────────────
+# ── Header ────────────────────────────────────────────────────
+echo -e "\n${MAGENTA}  NyaTicketTools Setup${NC}\n"
 
-if [[ "$STATUS_MODE" == true ]]; then
-    echo -e "\n${MAGENTA}"
-    echo "  ╔══════════════════════════════════════════╗"
-    echo "  ║   NyaTickerTools - Tool Status           ║"
-    echo "  ╚══════════════════════════════════════════╝"
-    echo -e "${NC}\n"
-
-    for tool in biliTickerBuy; do
-        dir="$TOOLS_DIR/$tool"
-        if [[ -d "$dir/.git" ]]; then
-            local_hash=$(git -C "$dir" log -1 --format=%h 2>/dev/null || echo "unknown")
-            remote_hash=$(git -C "$dir" ls-remote origin HEAD 2>/dev/null | awk '{print substr($1,1,7)}' || echo "unknown")
-            if [[ "$local_hash" == "$remote_hash" ]]; then
-                ok "$tool: $local_hash (up to date)"
-            else
-                warn "$tool: $local_hash (update available: $remote_hash)"
-            fi
-        elif [[ -d "$dir" ]]; then
-            warn "$tool: directory exists but not a git repo"
-        else
-            err "$tool: not installed"
-        fi
-    done
-    echo
-    exit 0
-fi
-
-# ── Platform detection ────────────────────────────────────────
-
-detect_platform() {
-    local os arch
-    os="$(uname -s | tr '[:upper:]' '[:lower:]')"
-    arch="$(uname -m)"
-
-    case "$os" in
-        linux)
-            case "$arch" in
-                x86_64)  echo "linux-amd64" ;;
-                aarch64) echo "linux-arm64" ;;
-                *)       echo "linux-${arch}" ;;
-            esac
-            ;;
-        darwin)
-            case "$arch" in
-                x86_64)  echo "darwin-amd64" ;;
-                arm64)   echo "darwin-arm64" ;;
-                *)       echo "darwin-${arch}" ;;
-            esac
-            ;;
-        *)
-            echo "${os}-${arch}"
-            ;;
-    esac
-}
-
-PLATFORM=$(detect_platform)
-info "Detected platform: ${BOLD}${PLATFORM}${NC}"
-
-# ── Prerequisites check ───────────────────────────────────────
-
-check_optional() {
-    if command -v "$1" &>/dev/null; then
-        ok "$1 found: $(command -v "$1")"
-        return 0
-    else
-        warn "$1 not found."
-        return 1
+# ── Prereq: find Python ───────────────────────────────────────
+PYTHON=""
+for cmd in python3 python; do
+    if command -v "$cmd" &>/dev/null; then
+        PYTHON="$cmd"
+        break
     fi
-}
+done
+if [[ -z "$PYTHON" ]]; then
+    err "Python 3 not found. Install: apt install python3"
+    exit 1
+fi
+ok "Python: $PYTHON ($($PYTHON --version 2>&1))"
 
-echo -e "\n${MAGENTA}"
-echo "  ╔══════════════════════════════════════════╗"
-echo "  ║   NyaTickerTools - Setup                 ║"
-echo "  ╚══════════════════════════════════════════╝"
-echo -e "${NC}"
-
-section "Checking prerequisites"
-
-HAS_GIT=false
-HAS_PYTHON=false
-HAS_PKG=false  # uv or pip
-PKG_CMD=""      # "uv pip" or "pip3" or "pip"
-
-if check_optional git; then HAS_GIT=true; fi
-if check_optional python3; then HAS_PYTHON=true; fi
-
-# Prefer uv (fast), fallback to pip
-# uv installs to ~/.local/bin by default — add to PATH if missing
+# ── Prereq: find package manager (uv > pip3 > pip) ────────────
+PKG_CMD=""
 _has_uv() { command -v uv &>/dev/null; }
-_add_uv_path() {
+
+# uv installs to ~/.local/bin — add to PATH if not found
+if ! _has_uv; then
     for d in "${HOME:-}/.local/bin" "${HOME:-}/.cargo/bin"; do
-        if [[ -x "$d/uv" ]] && ! _has_uv; then
-            export PATH="$d:$PATH"
-        fi
-    done
-}
-_add_uv_path 2>/dev/null || true
+        [[ -x "$d/uv" ]] && { export PATH="$d:$PATH"; break; }
+    done 2>/dev/null || true
+fi
 
 if _has_uv; then
-    ok "uv found: $(command -v uv)"
-    HAS_PKG=true
-    PKG_CMD="uv pip"
-elif check_optional pip3; then
-    HAS_PKG=true
+    ok "Package manager: uv ($(uv --version 2>&1))"
+    PKG_CMD="uv"
+elif command -v pip3 &>/dev/null; then
+    ok "Package manager: pip3"
     PKG_CMD="pip3"
-elif check_optional pip; then
-    HAS_PKG=true
+elif command -v pip &>/dev/null; then
+    ok "Package manager: pip"
     PKG_CMD="pip"
 else
-    warn "No package manager found (uv/pip)."
-    echo ""
-    info "Install uv (recommended - fastest):"
-    echo "  curl -LsSf https://astral.sh/uv/install.sh | sh"
-    echo ""
-    info "Or install pip:"
-    echo "  apt install python3-pip"
-    echo ""
+    err "No package manager found."
+    echo "  Install uv (fastest):"
+    echo "    curl -LsSf https://astral.sh/uv/install.sh | sh"
+    echo "  Or pip:"
+    echo "    apt install python3-pip"
+    exit 1
 fi
 
-# Unified install helper — uv needs --system for global install
-_pip() {
-    if [[ "$PKG_CMD" == "uv pip" ]]; then
-        $PKG_CMD "$@" --system
+# Unified install helper
+_pip_install() {
+    if [[ "$PKG_CMD" == "uv" ]]; then
+        uv pip install --system "$@" 2>&1
     else
-        $PKG_CMD "$@"
+        "$PKG_CMD" install "$@" 2>&1
     fi
 }
 
-# ── Create tools directory ────────────────────────────────────
+# ── Prereq: git ───────────────────────────────────────────────
+if ! command -v git &>/dev/null; then
+    err "git not found. Install: apt install git"
+    exit 1
+fi
+ok "Git: $(git --version 2>&1)"
 
-section "Setting up tools directory"
+# ── Install PyYAML (needed by scripts) ────────────────────────
+section "Installing PyYAML"
+info "Installing pyyaml..."
+if _pip_install pyyaml --quiet; then
+    ok "pyyaml installed"
+else
+    warn "pyyaml install failed (optional for Dashboard)"
+fi
 
-mkdir -p "$TOOLS_DIR"
-ok "Created: $TOOLS_DIR"
-
-# ── Clone tool repos ──────────────────────────────────────────
-
+# ── Clone biliTickerBuy ───────────────────────────────────────
 if [[ "$QUICK_MODE" == false ]]; then
-    section "Cloning tool repositories"
-
-    clone_or_update() {
-        local name="$1"
-        local repo="$2"
-        local dir="$TOOLS_DIR/$name"
-        if [[ -d "$dir/.git" ]]; then
-            info "Updating ${BOLD}${name}${NC}..."
-            if ! (cd "$dir" && git pull --rebase); then
-                warn "  Update failed for ${name}."
-            else
-                ok "  ${name} is up to date."
-            fi
+    section "biliTickerBuy"
+    if [[ -d "$BTB_DIR/.git" ]]; then
+        info "Updating biliTickerBuy..."
+        if (cd "$BTB_DIR" && git pull --rebase --quiet 2>&1); then
+            ok "biliTickerBuy up to date"
         else
-            info "Cloning ${BOLD}${name}${NC}..."
-            if ! git clone --depth 1 "$repo" "$dir"; then
-                err "  Failed to clone ${name} from ${repo}"
-                return 1
-            fi
-            ok "  Cloned ${name}."
+            warn "Update failed — continuing with current version"
         fi
-    }
-
-    if [[ "$HAS_GIT" == true ]]; then
-        clone_or_update "biliTickerBuy" "$BTB_REPO"
     else
-        err "git is required for cloning tool repos. Please install git."
-        exit 1
-    fi
-else
-    info "Quick mode: skipping git clones."
-fi
-
-# ── Install Python dependencies ───────────────────────────────
-
-section "Installing Python dependencies"
-
-if [[ "$HAS_PYTHON" == true && "$HAS_PKG" == true ]]; then
-    # biliTickerBuy deps
-    if [[ -f "$TOOLS_DIR/biliTickerBuy/requirements.txt" ]]; then
-        info "Installing biliTickerBuy dependencies..."
-        _pip install -r "$TOOLS_DIR/biliTickerBuy/requirements.txt" --quiet || \
-            warn "Failed to install biliTickerBuy deps."
-        ok "biliTickerBuy dependencies installed."
-    else
-        if [[ -d "$TOOLS_DIR/biliTickerBuy" ]]; then
-            info "Installing biliTickerBuy via pip..."
-            _pip install "$TOOLS_DIR/biliTickerBuy/" --quiet || \
-                warn "Failed to install biliTickerBuy."
+        info "Cloning biliTickerBuy..."
+        if git clone --depth 1 "$BTB_REPO" "$BTB_DIR" 2>&1; then
+            ok "biliTickerBuy cloned"
+        else
+            err "Clone failed — check network"
+            exit 1
         fi
     fi
-
-    ok "biliTickerBuy ready."
-
-    # PyYAML
-    info "Installing pyyaml..."
-    _pip install pyyaml --quiet || warn "Failed to install pyyaml."
-    ok "Common dependencies installed."
-else
-    warn "Python/pip not found. Skipping Python dependency installation."
-    info "Install uv (recommended): curl -LsSf https://astral.sh/uv/install.sh | sh"
-    info "Or install pip: apt install python3-pip"
 fi
 
-# ── Create config templates ───────────────────────────────────
+# ── Install biliTickerBuy dependencies ────────────────────────
+section "Installing biliTickerBuy dependencies"
+info "This may take a minute on first run..."
 
-section "Setting up config files"
-
-CONFIG_DIR="$PROJECT_ROOT/config"
-
-# Create accounts.yaml from sample if it doesn't exist
-if [[ ! -f "$CONFIG_DIR/accounts.yaml" ]]; then
-    if [[ -f "$CONFIG_DIR/sample_accounts.yaml" ]]; then
-        cp "$CONFIG_DIR/sample_accounts.yaml" "$CONFIG_DIR/accounts.yaml"
-        ok "Created config/accounts.yaml from sample."
-        warn "Edit config/accounts.yaml with your credentials!"
+if [[ -f "$BTB_DIR/requirements.txt" ]]; then
+    if _pip_install -r "$BTB_DIR/requirements.txt" --quiet; then
+        ok "Dependencies installed"
+    else
+        warn "Some deps may have failed — trying alternate method..."
     fi
-else
-    ok "config/accounts.yaml already exists."
 fi
 
-# Create tickets.yaml from sample if it doesn't exist
-if [[ ! -f "$CONFIG_DIR/tickets.yaml" ]]; then
-    if [[ -f "$CONFIG_DIR/sample_tickets.yaml" ]]; then
-        cp "$CONFIG_DIR/sample_tickets.yaml" "$CONFIG_DIR/tickets.yaml"
-        ok "Created config/tickets.yaml from sample."
-        warn "Edit config/tickets.yaml with your target events!"
+# Also try installing the package itself (handles the CLI entry point)
+info "Installing biliTickerBuy package..."
+if _pip_install "$BTB_DIR/" --quiet; then
+    ok "biliTickerBuy package installed"
+else
+    warn "Package install failed — btb CLI may not be available"
+    warn "You can still use: python3 -m biliTickerBuy buy config.json"
+fi
+
+# ── Verify installation ───────────────────────────────────────
+section "Verifying"
+if "$PYTHON" -c "import biliTickerBuy" 2>/dev/null; then
+    ok "biliTickerBuy import OK"
+else
+    warn "biliTickerBuy import FAILED — check install"
+    info "Try manually: $PKG_CMD install bilitickerbuy"
+fi
+
+# ── Create config files ───────────────────────────────────────
+section "Config files"
+for f in accounts tickets machines; do
+    sample="$CONFIG_DIR/sample_${f}.yaml"
+    target="$CONFIG_DIR/${f}.yaml"
+    if [[ -f "$sample" ]]; then
+        if [[ ! -f "$target" ]]; then
+            cp "$sample" "$target"
+            ok "Created config/${f}.yaml"
+        else
+            ok "config/${f}.yaml exists"
+        fi
     fi
-else
-    ok "config/tickets.yaml already exists."
-fi
+done
 
-# Create machines.yaml from sample if it doesn't exist
-if [[ ! -f "$CONFIG_DIR/machines.yaml" ]]; then
-    if [[ -f "$CONFIG_DIR/sample_machines.yaml" ]]; then
-        cp "$CONFIG_DIR/sample_machines.yaml" "$CONFIG_DIR/machines.yaml"
-        ok "Created config/machines.yaml from sample."
-    fi
-else
-    ok "config/machines.yaml already exists."
-fi
-
-# ── Summary ───────────────────────────────────────────────────
-
-section "Setup Complete"
-
-echo -e "  ${GREEN}Tools directory:${NC}  $TOOLS_DIR"
-echo -e "  ${GREEN}Config directory:${NC} $CONFIG_DIR"
-echo -e "  ${GREEN}Platform:${NC}         $PLATFORM"
+# ── Done ──────────────────────────────────────────────────────
 echo
-echo "  Next steps:"
-echo -e "    1. Start Dashboard: ${CYAN}./nyaticket start${NC}"
-echo -e "    2. Open ${CYAN}http://localhost:8090${NC}"
-echo "    3. Add accounts + configure tickets in the Dashboard"
+echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo -e "${GREEN}  Setup Complete!${NC}"
+echo -e "${GREEN}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
+echo
+echo -e "  ${BOLD}Next:${NC}"
+echo -e "    ${CYAN}./nyaticket start${NC}"
+echo -e "    Open ${CYAN}http://localhost:8090${NC}"
+echo -e "    Add accounts + tickets in the Dashboard"
 echo
