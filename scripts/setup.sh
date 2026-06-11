@@ -191,9 +191,13 @@ else
     echo ""
 fi
 
-# Unified install helper
+# Unified install helper — uv needs --system for global install
 _pip() {
-    $PKG_CMD "$@"
+    if [[ "$PKG_CMD" == "uv pip" ]]; then
+        $PKG_CMD "$@" --system
+    else
+        $PKG_CMD "$@"
+    fi
 }
 
 # ── Create tools directory ────────────────────────────────────
@@ -317,8 +321,7 @@ echo -e "  ${GREEN}Config directory:${NC} $CONFIG_DIR"
 echo -e "  ${GREEN}Platform:${NC}         $PLATFORM"
 echo
 echo "  Next steps:"
-echo -e "    1. Edit ${CYAN}config/accounts.yaml${NC} with your credentials"
-echo -e "    2. Edit ${CYAN}config/tickets.yaml${NC} with target events"
-echo -e "    3. Generate configs: ${CYAN}python3 scripts/inject_config.py${NC}"
-echo -e "    4. Start tools:      ${CYAN}./scripts/start_all.sh${NC}"
+echo -e "    1. Start Dashboard: ${CYAN}./nyaticket start${NC}"
+echo -e "    2. Open ${CYAN}http://localhost:8090${NC}"
+echo "    3. Add accounts + configure tickets in the Dashboard"
 echo
